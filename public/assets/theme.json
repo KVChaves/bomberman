@@ -1,0 +1,88 @@
+{
+  "pixelArt": true,
+  "background": "backgrounds/wp.jpeg",
+  "tiles": {
+    "floor": [],
+    "wall": null,
+    "block": null
+  },
+  "maps": {},
+  "items": {
+    "bomb_up": "powerups/bomb_up.webp",
+    "fire_up": "powerups/fire_up.webp",
+    "speed_up": "powerups/speed_up.webp",
+    "full_fire": "powerups/full_fire.webp",
+    "remote": "powerups/remote.webp",
+    "bomb_pass": "powerups/bomb_pass.webp",
+    "wall_pass": "powerups/wall_pass.webp",
+    "kick": "powerups/kick.webp",
+    "glove": "powerups/glove.webp",
+    "punch": "powerups/punch.webp",
+    "shield": "powerups/shield.webp",
+    "heart": "powerups/heart.webp",
+    "skull": "powerups/skull.webp",
+    "line_bomb": "powerups/line_bomb.webp",
+    "power_bomb": "powerups/power_bomb.webp"
+  },
+  "bomb": null,
+  "flame": null,
+  "skins": [
+    {
+      "name": "Bomberman",
+      "image": "skins/skin1.webp",
+      "scale": 1.2,
+      "color": "#dfe6ff"
+    },
+    {
+      "name": "Mario",
+      "image": "skins/skin2.png",
+      "scale": 1.15,
+      "color": "#e03a3a"
+    },
+    {
+      "name": "Sonic",
+      "image": "skins/skin3.png",
+      "scale": 1.15,
+      "color": "#2f6bff",
+      "pixelArt": false
+    },
+    {
+      "image": "skins/skin4.jpg",
+      "color": "#c9a27a",
+      "pixelArt": false,
+      "scale": 1.1
+    },
+    {
+      "image": "skins/skin5.png",
+      "scale": 1.25,
+      "color": "#d08a3c",
+      "pixelArt": false
+    },
+    {
+      "image": "skins/skin6.jpeg",
+      "color": "#8a6a4a",
+      "pixelArt": false,
+      "scale": 1.1
+    },
+    {
+      "name": "Knuckles",
+      "image": "skins/skin7.png",
+      "scale": 1.15,
+      "color": "#d62a2a",
+      "pixelArt": false
+    },
+    {
+      "image": "skins/skin8.png",
+      "scale": 1.25,
+      "color": "#8fb3a0",
+      "pixelArt": false
+    },
+    {
+      "name": "Batman",
+      "image": "skins/skin9.jpeg",
+      "scale": 1.1,
+      "color": "#3a3d4a",
+      "pixelArt": false
+    }
+  ]
+}

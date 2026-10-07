@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CTI Bombers</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="conn" class="hidden">Conectando…</div>
+  <div id="netStatus" class="off"></div>
+  <div id="toast" class="hidden"></div>
+
+  <!-- ===== Tela inicial ===== -->
+  <section id="screen-title" class="screen">
+    <div class="title-menu">
+      <input id="playerName" maxlength="12" placeholder="Seu nome" autocomplete="off">
+      <nav class="menu">
+        <button id="btnSingle"><span class="ico">🤖</span>Singleplayer</button>
+        <button id="btnMulti"><span class="ico">🌐</span>Multiplayer</button>
+        <button id="btnSkin" class="ghost"><span class="ico">🎨</span>Mudar skin <canvas id="skinMini" width="28" height="28"></canvas></button>
+        <button id="btnRank" class="ghost"><span class="ico">🏆</span>Ranking</button>
+      </nav>
+    </div>
+    <h1 class="logo"><span>CTI</span> BOMBERS</h1>
+    <p class="tagline">Explosões entre amigos</p>
+
+    <div id="rankModal" class="modal hidden">
+      <div class="panel">
+        <h2>🏆 Ranking geral</h2>
+        <table id="historyTable">
+          <thead><tr><th>#</th><th>Jogador</th><th class="num" title="Pontos">Pts</th><th class="num" title="Partidas vencidas">Vit.</th><th class="num" title="Rodadas vencidas">Rod.</th><th class="num" title="Partidas jogadas">Jogos</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="note">Pontos só valem em partidas multiplayer com 3 ou mais jogadores: cada rodada vencida dá (jogadores − 2) pontos e quem vence a partida ganha o dobro disso.</p>
+        <div class="row" style="margin-top:12px"><button id="rankClose">Fechar</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Escolher skin ===== -->
+  <section id="screen-skin" class="screen hidden">
+    <h1 class="logo small">Escolha sua skin</h1>
+    <div id="skinGrid"></div>
+    <div class="row"><button id="skinBack">Voltar</button></div>
+  </section>
+
+  <!-- ===== Singleplayer ===== -->
+  <section id="screen-single" class="screen hidden">
+    <h1 class="logo small">Singleplayer</h1>
+    <div class="panel form" id="singleForm"></div>
+    <div class="row"><button id="singlePlay">Jogar</button><button id="singleBack" class="ghost">Voltar</button></div>
+  </section>
+
+  <!-- ===== Multiplayer ===== -->
+  <section id="screen-multi" class="screen hidden">
+    <h1 class="logo small">Multiplayer</h1>
+    <div class="panel wide">
+      <h2>Salas abertas</h2>
+      <table id="roomTable">
+        <thead><tr><th>Sala</th><th>Gerente</th><th>Jogadores</th><th>Mapa</th><th>Situação</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p id="noRooms" class="note">Nenhuma sala aberta. Crie a primeira!</p>
+    </div>
+    <div class="panel form hidden" id="createForm"></div>
+    <div class="row">
+      <button id="btnCreate">Criar sala</button>
+      <button id="createConfirm" class="hidden">Criar</button>
+      <button id="multiBack" class="ghost">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ===== Sala / partida ===== -->
+  <section id="screen-game" class="screen hidden">
+    <main>
+      <div id="stage">
+        <canvas id="game"></canvas>
+        <div id="banner" class="hidden"></div>
+        <div id="curseMsg" class="hidden"></div>
+        <div id="overlay">
+          <div id="msg"></div>
+          <div id="lobbyBox" class="panel">
+            <div id="roomTitle"></div>
+            <div id="roomSettings" class="form"></div>
+            <ul id="lobbyList"></ul>
+            <div class="row"><button id="readyBtn">Pronto!</button><button id="skinBtn" class="ghost">Trocar skin</button><button id="leaveBtn" class="ghost">Sair</button></div>
+          </div>
+          <table id="finalTable" class="hidden"></table>
+        </div>
+      </div>
+      <aside id="hud">
+        <div id="roundInfo"></div>
+        <table id="scoreTable"></table>
+        <div id="myPowers"></div>
+        <button id="leaveBtn2" class="ghost">Sair da sala</button>
+      </aside>
+    </main>
+  </section>
+
+  <script src="config.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
