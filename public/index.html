@@ -43,18 +43,9 @@
     <h1 class="logo small">Escolha sua skin</h1>
     <div id="skinGrid"></div>
     <div id="skinUpload" class="panel hidden">
-      <h2>Nova skin</h2>
-      <div class="up-body">
-        <canvas id="upPreview" width="120" height="120"></canvas>
-        <div class="form">
-          <label>Imagem <input id="upFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp"></label>
-          <label>Nome da skin <input id="upName" maxlength="16" placeholder="Ex.: Meu boneco" autocomplete="off"></label>
-          <label>Cor nas tabelas <input id="upColor" type="color" value="#f5b82e"></label>
-          <label class="check"><input id="upCircle" type="checkbox"> Recortar em círculo</label>
-        </div>
-      </div>
-      <p class="note">PNG com fundo transparente fica melhor; para fotos, marque "recortar em círculo". A skin fica salva no servidor e todos os jogadores podem usá-la. Só quem enviou (pelo nome) pode apagá-la.</p>
-      <div class="row"><button id="upSend">Salvar skin</button><button id="upCancel" class="ghost">Cancelar</button></div>
+      <input id="upFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+      <input id="upName" maxlength="16" placeholder="Nome da skin" autocomplete="off">
+      <div class="row"><button id="upSend">Salvar</button><button id="upCancel" class="ghost">Cancelar</button></div>
     </div>
     <div class="row"><button id="skinBack">Voltar</button></div>
   </section>

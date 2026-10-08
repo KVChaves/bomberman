@@ -38,8 +38,8 @@ Setas ou WASD para andar, **espaço** para soltar bomba, **E** ou **Shift** para
 - **Esteira:** um circuito de esteiras no sentido horário que arrasta jogadores e bombas (dá para andar contra ela). Por padrão os mapas **se alternam a cada rodada** (sem repetir até todos terem aparecido); o gerente pode fixar um mapa.
 
 ## Skins dos jogadores
-Em **Mudar skin** → **Adicionar skin**, cada jogador envia uma imagem própria (PNG, JPG, GIF ou WebP; imagens grandes
-são reduzidas para 256 px). O servidor salva as imagens em `data/skins/` e a lista em `data/skins/skins.json`, e a
+Em **Mudar skin** → **Adicionar skin**, cada jogador envia uma imagem própria (PNG, JPG, GIF ou WebP). Toda imagem é
+padronizada em 128×128 px (encaixada inteira, sem cortar) e no jogo ocupa exatamente um quadrado. O servidor salva as imagens em `data/skins/` e a lista em `data/skins/skins.json`, e a
 skin aparece na hora para todos. Só quem enviou (pelo nome digitado) pode apagá-la; cada nome pode ter até 5 skins.
 Também dá para colocar imagens direto na pasta `data/skins/`: elas viram skins quando o servidor reinicia.
 

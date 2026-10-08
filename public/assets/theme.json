@@ -24,7 +24,7 @@
     "line_bomb": "powerups/line_bomb.webp",
     "power_bomb": "powerups/power_bomb.webp"
   },
-  "bomb": null,
+  "bomb": "bomb.webp",
   "flame": null,
   "skins": [
     {

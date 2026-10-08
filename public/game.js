@@ -61,7 +61,7 @@ function sizeCanvas() { canvas.width = W * TILE; canvas.height = H * TILE; ctx.i
 // ---------- assets / tema (veja public/assets/LEIAME.md) ----------
 const A = { pixelArt: false, tilesets: { default: { floor: [], wall: null, block: null } }, items: {}, bomb: null, flame: null };
 let SKINS = []; // skins do tema, pelo número: {color, sheet?}
-let CUSTOM = []; // skins enviadas pelos jogadores (lista do servidor): {id, file, name, owner, color, shape}
+let CUSTOM = []; // skins enviadas pelos jogadores (lista do servidor): {id, file, name, owner}
 const customLoaded = {}; // id → skin pronta para desenhar
 
 function loadImg(src, base = "assets/") {
@@ -103,10 +103,10 @@ function makeSkin(img, s, color) {
 const isCustom = (key) => typeof key === "string";
 const hashColor = (id) => DEFAULT_COLORS[[...id].reduce((h, ch) => h * 31 + ch.charCodeAt(0), 7) % DEFAULT_COLORS.length];
 
-// imagem simples (sem spritesheet); fotos pequenas tipo pixel art ficam nítidas, as grandes suavizadas
+// imagem simples (sem spritesheet), encaixada inteira dentro de um tile, com os pés no fim dele
 function customSkin(img, c) {
-  const sk = makeSkin(img, { name: c.name, owner: c.owner, color: c.color, shape: c.shape || undefined, scale: c.shape === "circle" ? 1 : 1.15 }, hashColor(c.id || "x"));
-  sk.sheet.pixelArt = Math.max(img.width, img.height) <= 64;
+  const sk = makeSkin(img, { name: c.name, owner: c.owner, scale: Math.min(1, img.height / img.width) }, hashColor(c.id || "x"));
+  sk.sheet.pixelArt = false;
   return sk;
 }
 
@@ -412,49 +412,30 @@ function openUpload() {
 
 function closeUpload() {
   upload = null;
-  $("upFile").value = ""; $("upName").value = ""; $("upCircle").checked = false;
+  $("upFile").value = ""; $("upName").value = "";
   $("upSend").disabled = false;
   $("skinUpload").classList.add("hidden");
-  drawUploadPreview();
 }
 
-const readAsDataUrl = (file) => new Promise((res, rej) => {
-  const r = new FileReader();
-  r.onload = () => res(r.result);
-  r.onerror = rej;
-  r.readAsDataURL(file);
-});
-
-// imagens pequenas vão como estão; as grandes são reduzidas para no máximo 256 px (WebP, ou PNG se o navegador não fizer WebP)
+// toda skin enviada vira um quadrado de SKIN_PX: a imagem é encaixada inteira (sem cortar), centrada e com os pés embaixo
+const SKIN_PX = 128;
 async function prepareImage(file) {
   const src = URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
-    if (file.size <= 400 * 1024 && Math.max(img.width, img.height) <= 512 && /^image\/(png|jpeg|gif|webp)$/.test(file.type))
-      return { url: await readAsDataUrl(file), img };
-    const k = Math.min(1, 256 / Math.max(img.width, img.height));
-    const c = el("canvas", { width: Math.max(1, Math.round(img.width * k)), height: Math.max(1, Math.round(img.height * k)) });
+    const k = SKIN_PX / Math.max(img.width, img.height);
+    const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+    const c = el("canvas", { width: SKIN_PX, height: SKIN_PX });
     const g = c.getContext("2d");
+    g.imageSmoothingEnabled = Math.max(img.width, img.height) > 64; // pixel art pequena aumenta sem borrar
     g.imageSmoothingQuality = "high";
-    g.drawImage(img, 0, 0, c.width, c.height);
-    let url = c.toDataURL("image/webp", 0.9);
+    g.drawImage(img, (SKIN_PX - w) / 2, SKIN_PX - h, w, h);
+    let url = c.toDataURL("image/webp", 0.92);
     if (!url.startsWith("data:image/webp")) url = c.toDataURL("image/png");
     return { url, img: c };
   } finally {
     URL.revokeObjectURL(src);
   }
-}
-
-function drawUploadPreview() {
-  const c = $("upPreview"), g = c.getContext("2d");
-  g.clearRect(0, 0, c.width, c.height);
-  if (!upload) {
-    g.fillStyle = "#c9b08a"; g.font = "13px system-ui"; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText("prévia", c.width / 2, c.height / 2);
-    return;
-  }
-  const sk = customSkin(upload.img, { color: $("upColor").value, shape: $("upCircle").checked ? "circle" : "" });
-  drawCharacter(g, sk, "d", c.width / 2, c.height * 0.56, c.width * 0.8, false, 0);
 }
 
 // ---------- formulários ----------
@@ -794,7 +775,12 @@ function drawBombs(bombs, now) {
     const r = TILE * 0.36 * (1 + 0.08 * Math.sin(now / (!remote && t < 0.7 ? 40 : 120)));
     ctx.fillStyle = "rgba(0,0,0,.25)";
     ctx.beginPath(); ctx.ellipse(cx, (y + 0.5) * TILE + r * 0.7, r * 0.8, r * 0.35, 0, 0, 7); ctx.fill();
-    if (A.bomb) { const s = TILE * (r / (TILE * 0.36)); ctx.drawImage(A.bomb, cx - s / 2, cy - s / 2, s, s); continue; }
+    if (A.bomb) {
+      const s = r * 2; // mesmo tamanho da bomba desenhada (~72% do tile), pulsando junto
+      ctx.drawImage(A.bomb, cx - r, cy - r, s, s);
+      if (remote) { ctx.strokeStyle = "#4aa8ff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, 7); ctx.stroke(); } // bomba do controle remoto
+      continue;
+    }
     ctx.fillStyle = remote ? "#12304f" : "#111"; ctx.beginPath(); ctx.arc(cx, cy + 2, r, 0, 7); ctx.fill();
     ctx.fillStyle = "#555"; ctx.beginPath(); ctx.arc(cx - r / 3, cy - r / 3, r / 4, 0, 7); ctx.fill();
     if (remote) { ctx.strokeStyle = "#4aa8ff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy + 2, r + 2, 0, 7); ctx.stroke(); }
@@ -834,6 +820,7 @@ function frame(now) {
   prev = now;
   if (screen === "game" && S) {
     const { st, ts } = currentStyle();
+    ctx.imageSmoothingEnabled = !A.pixelArt; // drawCharacter muda isso por skin; sem voltar, powerups e bomba saíam borrados
     drawFloor(st, ts);
     drawSpecials(S.specials || [], now);
     drawGrid(S.grid, st, ts);
@@ -867,9 +854,7 @@ function init() {
       try { upload = await prepareImage(f); } catch { toast("Não consegui abrir essa imagem."); }
       if (upload && !$("upName").value.trim()) $("upName").value = f.name.replace(/\.[^.]+$/, "").slice(0, 16);
     }
-    drawUploadPreview();
   };
-  $("upColor").oninput = $("upCircle").onchange = drawUploadPreview;
   $("upCancel").onclick = closeUpload;
   $("upSend").onclick = () => {
     const owner = $("playerName").value.trim();
@@ -877,9 +862,8 @@ function init() {
     if (!upload) { toast("Escolha uma imagem primeiro."); return; }
     if (upload.url.length > 690000) { toast("Imagem grande demais (máximo 512 KB)."); return; }
     $("upSend").disabled = true;
-    send({ t: "skin_add", owner, name: $("upName").value.trim(), color: $("upColor").value, shape: $("upCircle").checked ? "circle" : "", data: upload.url });
+    send({ t: "skin_add", owner, name: $("upName").value.trim(), data: upload.url });
   };
-  drawUploadPreview();
   $("skinBack").onclick = () => {
     closeUpload();
     if (skinRoomMode) { skinRoomMode = false; show("game"); return; }

@@ -89,7 +89,7 @@ class Skins:
             extra = []
         for f in extra:
             self.items.append({"id": "c" + hashlib.sha1(f.encode()).hexdigest()[:8], "file": f,
-                               "name": os.path.splitext(f)[0][:16], "owner": "", "color": "", "shape": ""})
+                               "name": os.path.splitext(f)[0][:16], "owner": ""})
         if extra or len(self.items) != len(items):
             self._save()
 
@@ -127,10 +127,8 @@ class Skins:
         if not ext:
             return None, "Formato não aceito. Use PNG, JPG, GIF ou WebP."
         sid = "c" + secrets.token_hex(4)
-        color = str(m.get("color", ""))
         skin = {"id": sid, "file": f"{sid}.{ext}", "name": str(m.get("name", "")).strip()[:16] or f"Skin de {owner}",
-                "owner": owner, "color": color if re.fullmatch(r"#[0-9a-fA-F]{6}", color) else "",
-                "shape": "circle" if m.get("shape") == "circle" else ""}
+                "owner": owner}
         try:
             os.makedirs(self.dir, exist_ok=True)
             with open(os.path.join(self.dir, skin["file"]), "wb") as f:
