@@ -7,6 +7,8 @@ import hashlib
 import json
 import mimetypes
 import os
+import re
+import secrets
 import socket
 import struct
 import time
@@ -17,6 +19,7 @@ from maps import MAPS
 BASE = os.path.dirname(os.path.abspath(__file__))
 PUBLIC = os.path.join(BASE, "public")
 HISTORY_FILE = os.environ.get("HISTORY_FILE") or os.path.join(BASE, "data", "history.json")  # em hospedagem, aponte para um disco persistente
+SKINS_DIR = os.environ.get("SKINS_DIR") or os.path.join(BASE, "data", "skins")  # skins enviadas pelos jogadores
 mimetypes.add_type("image/webp", ".webp")  # Pythons antigos não conhecem
 # Sites autorizados a abrir WebSocket (ex.: "https://cti-bombers.vercel.app,https://meusite.com").
 # Vazio = qualquer um (bom para rede local). O próprio endereço do servidor sempre é aceito.
@@ -59,6 +62,111 @@ class History:
         return rows[:n]
 
 
+class Skins:
+    """Skins enviadas pelos jogadores: as imagens ficam em data/skins/ e a lista em data/skins/skins.json.
+
+    Uma imagem colocada à mão na pasta também vira skin (o nome do arquivo é o nome da skin)."""
+
+    MAX_BYTES = 512 * 1024
+    MAX_PER_OWNER, MAX_TOTAL = 5, 200
+    MAGIC = ((b"\x89PNG", "png"), (b"\xff\xd8\xff", "jpg"), (b"GIF8", "gif"))
+    EXTS = {"png", "jpg", "jpeg", "gif", "webp"}
+
+    def __init__(self, folder):
+        self.dir = folder
+        self.index = os.path.join(folder, "skins.json")
+        try:
+            with open(self.index, encoding="utf-8") as f:
+                items = json.load(f)
+        except (OSError, ValueError):
+            items = []
+        self.items = [s for s in items if isinstance(s, dict) and self.valid_file(s.get("file"))
+                      and os.path.isfile(os.path.join(folder, s["file"]))]  # arquivo apagado à mão sai da lista
+        known = {s["file"] for s in self.items}
+        try:
+            extra = sorted(f for f in os.listdir(folder) if self.valid_file(f) and f not in known)
+        except OSError:
+            extra = []
+        for f in extra:
+            self.items.append({"id": "c" + hashlib.sha1(f.encode()).hexdigest()[:8], "file": f,
+                               "name": os.path.splitext(f)[0][:16], "owner": "", "color": "", "shape": ""})
+        if extra or len(self.items) != len(items):
+            self._save()
+
+    def valid_file(self, f):
+        return isinstance(f, str) and re.fullmatch(r"[\w-]+\.(\w+)", f) and f.rsplit(".", 1)[1].lower() in self.EXTS
+
+    def __contains__(self, sid):
+        return any(s["id"] == sid for s in self.items)
+
+    def public(self):
+        return self.items
+
+    def _kind(self, data):
+        if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+            return "webp"
+        return next((ext for magic, ext in self.MAGIC if data.startswith(magic)), None)
+
+    def add(self, owner, m):
+        """Salva a skin enviada; devolve (skin, None) ou (None, mensagem de erro)."""
+        owner = str(owner or "").strip()[:12]
+        if not owner:
+            return None, "Digite seu nome antes de enviar uma skin."
+        if sum(1 for s in self.items if s["owner"].lower() == owner.lower()) >= self.MAX_PER_OWNER:
+            return None, f"Cada jogador pode ter até {self.MAX_PER_OWNER} skins. Apague uma para enviar outra."
+        if len(self.items) >= self.MAX_TOTAL:
+            return None, "O servidor já tem skins demais."
+        raw = str(m.get("data", ""))
+        try:
+            data = base64.b64decode(raw.split(",", 1)[-1], validate=True)
+        except ValueError:
+            return None, "Imagem inválida."
+        if len(data) > self.MAX_BYTES:
+            return None, "Imagem grande demais (máximo 512 KB)."
+        ext = self._kind(data)
+        if not ext:
+            return None, "Formato não aceito. Use PNG, JPG, GIF ou WebP."
+        sid = "c" + secrets.token_hex(4)
+        color = str(m.get("color", ""))
+        skin = {"id": sid, "file": f"{sid}.{ext}", "name": str(m.get("name", "")).strip()[:16] or f"Skin de {owner}",
+                "owner": owner, "color": color if re.fullmatch(r"#[0-9a-fA-F]{6}", color) else "",
+                "shape": "circle" if m.get("shape") == "circle" else ""}
+        try:
+            os.makedirs(self.dir, exist_ok=True)
+            with open(os.path.join(self.dir, skin["file"]), "wb") as f:
+                f.write(data)
+        except OSError as e:
+            print("Aviso: não consegui salvar a skin:", e)
+            return None, "O servidor não conseguiu salvar a skin."
+        self.items.append(skin)
+        self._save()
+        return skin, None
+
+    def remove(self, owner, sid):
+        """Só quem enviou (mesmo nome) apaga a skin; devolve uma mensagem de erro ou None."""
+        s = next((s for s in self.items if s["id"] == sid), None)
+        if s is None:
+            return "Skin não encontrada."
+        if not s["owner"] or s["owner"].lower() != str(owner or "").strip().lower():
+            return "Só quem enviou a skin pode apagá-la."
+        self.items.remove(s)
+        self._save()
+        try:
+            os.remove(os.path.join(self.dir, s["file"]))
+        except OSError:
+            pass
+        return None
+
+    def _save(self):
+        try:
+            os.makedirs(self.dir, exist_ok=True)
+            with open(self.index + ".tmp", "w", encoding="utf-8") as f:
+                json.dump(self.items, f, ensure_ascii=False, indent=1)
+            os.replace(self.index + ".tmp", self.index)
+        except OSError as e:
+            print("Aviso: não consegui salvar a lista de skins:", e)
+
+
 # ---------- WebSocket mínimo ----------
 def ws_frame(payload, opcode=1):
     n = len(payload)
@@ -82,7 +190,7 @@ async def read_frame(reader):
         n = struct.unpack(">H", await reader.readexactly(2))[0]
     elif n == 127:
         n = struct.unpack(">Q", await reader.readexactly(8))[0]
-    if n > 1 << 16:
+    if n > 1 << 20:  # 1 MB: cabe uma skin enviada (até 512 KB em base64)
         raise ValueError("frame grande demais")
     mask = await reader.readexactly(4) if b2 & 0x80 else None
     data = await reader.readexactly(n)
@@ -117,13 +225,15 @@ class Hub:
         self.next_room = 1
         self.history = History(HISTORY_FILE)
         self.sent_history = -1
+        self.skins = Skins(SKINS_DIR)
 
     def room_list(self):
         return [r.info() for r in self.rooms.values() if not r.single and r.connected()]
 
     def hello(self):
         return {"t": "hello", "max": MAX_PLAYERS,
-                "maps": [{"id": k, "name": m["name"], "w": m["w"], "h": m["h"]} for k, m in MAPS.items()]}
+                "maps": [{"id": k, "name": m["name"], "w": m["w"], "h": m["h"]} for k, m in MAPS.items()],
+                "skins": self.skins.public()}
 
     def send_menu(self, c):
         c.send({"t": "rooms", "rooms": self.room_list()})
@@ -134,6 +244,9 @@ class Hub:
         if not isinstance(m, dict):
             return
         t = m.get("t")
+        if t in ("skin_add", "skin_del"):  # vale dentro ou fora de uma sala
+            self.custom_skin(c, m, t == "skin_add")
+            return
         if c.room:
             if t == "leave":
                 self.leave(c)
@@ -149,6 +262,20 @@ class Hub:
         elif t in ("create", "join"):
             self.enter(c, m, t == "create")
 
+    def custom_skin(self, c, m, add):
+        if add:
+            skin, err = self.skins.add(m.get("owner"), m)
+            if skin:
+                c.send({"t": "skin_added", "id": skin["id"]})
+        else:
+            err = self.skins.remove(m.get("owner"), m.get("id"))
+        if err:
+            c.send({"t": "error", "msg": err})
+            return
+        frame = enc({"t": "skins", "skins": self.skins.public()})
+        for cl in self.clients:
+            cl.send_raw(frame)
+
     @staticmethod
     def _int(v, default):
         try:
@@ -158,11 +285,12 @@ class Hub:
 
     def enter(self, c, m, create):
         name = str(m.get("name", "")).strip()[:12] or "Jogador"
-        skin, nskins = self._int(m.get("skin"), 0), self._int(m.get("nskins"), 8)
+        skin = m.get("skin") if isinstance(m.get("skin"), str) else self._int(m.get("skin"), 0)
+        nskins = self._int(m.get("nskins"), 8)
         if create:
             single = bool(m.get("single"))
             rname = str(m.get("room", "")).strip()[:24] or f"Sala de {name}"
-            room = Room(self.next_room, rname, single, self.history)
+            room = Room(self.next_room, rname, single, self.history, self.skins)
             room.apply_settings(m)
             room.preview()
         else:
@@ -271,11 +399,12 @@ async def ws_session(reader, writer, headers):
         hub.leave(c)
 
 
-async def serve_static(writer, path):
+async def serve_static(writer, path, root=PUBLIC):
     path = path.split("?")[0]
     rel = "index.html" if path == "/" else path.lstrip("/")
-    full = os.path.realpath(os.path.join(PUBLIC, rel))
-    if not full.startswith(PUBLIC + os.sep) or not os.path.isfile(full):
+    root = os.path.realpath(root)
+    full = os.path.realpath(os.path.join(root, rel))
+    if not full.startswith(root + os.sep) or not os.path.isfile(full):
         body, status, ctype = b"404", "404 Not Found", "text/plain"
     else:
         with open(full, "rb") as f:
@@ -313,6 +442,8 @@ async def handle(reader, writer):
         elif route == "/health":  # verificação de saúde das hospedagens (Render, Fly, Railway...)
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
             await writer.drain()
+        elif route.startswith("/skins/"):  # imagens das skins enviadas pelos jogadores
+            await serve_static(writer, route[len("/skins/"):], SKINS_DIR)
         else:
             await serve_static(writer, path)
     except (asyncio.IncompleteReadError, asyncio.TimeoutError, ConnectionError, ValueError, OSError):

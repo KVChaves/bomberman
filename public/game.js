@@ -60,15 +60,17 @@ function sizeCanvas() { canvas.width = W * TILE; canvas.height = H * TILE; ctx.i
 
 // ---------- assets / tema (veja public/assets/LEIAME.md) ----------
 const A = { pixelArt: false, tilesets: { default: { floor: [], wall: null, block: null } }, items: {}, bomb: null, flame: null };
-let SKINS = []; // {color, sheet?}
+let SKINS = []; // skins do tema, pelo número: {color, sheet?}
+let CUSTOM = []; // skins enviadas pelos jogadores (lista do servidor): {id, file, name, owner, color, shape}
+const customLoaded = {}; // id → skin pronta para desenhar
 
-function loadImg(src) {
+function loadImg(src, base = "assets/") {
   return new Promise((res) => {
     if (!src) return res(null);
     const img = new Image();
     img.onload = () => res(img);
     img.onerror = () => { console.warn("asset não encontrado:", src); res(null); };
-    img.src = "assets/" + src;
+    img.src = base + src;
   });
 }
 
@@ -83,15 +85,63 @@ async function loadTileset(t = {}) {
 async function loadSkin(s, i) {
   if (typeof s === "string") s = { image: s };
   const img = await loadImg(s.image);
-  if (!img) return null;
+  return img && makeSkin(img, s, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
+}
+
+function makeSkin(img, s, color) {
   return {
-    color: s.color || DEFAULT_COLORS[i % DEFAULT_COLORS.length], name: s.name,
+    color: s.color || color, name: s.name, owner: s.owner,
     sheet: {
       img, fw: s.frameWidth || img.width, fh: s.frameHeight || img.height,
       rows: s.rows || { d: 0, u: 1, l: 2, r: 3 }, frames: s.frames || 1, fps: s.fps || 8,
       scale: s.scale || 1, offsetY: s.offsetY || 0, shape: s.shape, pixelArt: s.pixelArt,
     },
   };
+}
+
+// ---------- skins enviadas pelos jogadores (salvas pelo servidor em data/skins/) ----------
+const isCustom = (key) => typeof key === "string";
+const hashColor = (id) => DEFAULT_COLORS[[...id].reduce((h, ch) => h * 31 + ch.charCodeAt(0), 7) % DEFAULT_COLORS.length];
+
+// imagem simples (sem spritesheet); fotos pequenas tipo pixel art ficam nítidas, as grandes suavizadas
+function customSkin(img, c) {
+  const sk = makeSkin(img, { name: c.name, owner: c.owner, color: c.color, shape: c.shape || undefined, scale: c.shape === "circle" ? 1 : 1.15 }, hashColor(c.id || "x"));
+  sk.sheet.pixelArt = Math.max(img.width, img.height) <= 64;
+  return sk;
+}
+
+// as imagens vêm do servidor de jogo, que pode estar em outro endereço que o site (ex.: site na Vercel)
+const skinUrl = (file) => new URL("skins/" + encodeURIComponent(file), serverUrl().replace(/^ws/, "http")).href;
+
+function skinOf(key) {
+  if (isCustom(key)) return customLoaded[key] || { color: hashColor(key) };
+  return SKINS[key % SKINS.length];
+}
+
+const allSkins = () => [...SKINS.keys(), ...CUSTOM.map((c) => c.id)];
+
+function setCustomSkins(list) {
+  CUSTOM = list || [];
+  if (isCustom(mySkin) && !CUSTOM.some((c) => c.id === mySkin)) mySkin = 0; // a skin escolhida foi apagada
+  for (const c of CUSTOM) {
+    if (c.id in customLoaded) continue;
+    customLoaded[c.id] = null;
+    loadImg(skinUrl(c.file), "").then((img) => {
+      if (!img) return;
+      customLoaded[c.id] = customSkin(img, c);
+      skinsChanged();
+    });
+  }
+  skinsChanged();
+}
+
+// redesenha tudo que mostra skins (cartões, retratos nas tabelas)
+function skinsChanged() {
+  skinGridKey = "";
+  for (const k of Object.keys(lastKey)) delete lastKey[k];
+  if (screen === "skin") buildSkinGrid();
+  drawSkinMini();
+  if (S && screen === "game") updateUI();
 }
 
 async function loadTheme() {
@@ -186,7 +236,9 @@ function connect() {
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     switch (m.t) {
-      case "hello": maps = m.maps; buildForms(); break;
+      case "hello": maps = m.maps; buildForms(); setCustomSkins(m.skins); break;
+      case "skins": setCustomSkins(m.skins); break;
+      case "skin_added": closeUpload(); pickSkin(m.id); toast("Skin salva! Todos os jogadores já podem vê-la."); break;
       case "rooms": rooms = m.rooms; if (screen === "multi") renderRooms(); break;
       case "history": history = m.rows; renderHistory(); break;
       case "you": myId = m.id; skinChecked = false; prevCurse = null; break;
@@ -198,7 +250,7 @@ function connect() {
         if (skinRoomMode) buildSkinGrid(); // só refaz se alguma skin ocupada mudou
         break;
       case "left": S = null; myId = null; skinRoomMode = false; show(lastMode === "single" ? "title" : "multi"); break;
-      case "error": toast(m.msg); break;
+      case "error": toast(m.msg); $("upSend").disabled = false; break;
     }
   };
   ws.onclose = () => {
@@ -296,10 +348,21 @@ function drawCharacter(g, sk, face, cx, cy, size, moving, now) {
 function drawSkinMini() {
   const g = $("skinMini").getContext("2d");
   g.clearRect(0, 0, 28, 28);
-  if (SKINS[mySkin]) drawCharacter(g, SKINS[mySkin], "d", 14, 17, 26, false, 0);
+  const sk = skinOf(mySkin);
+  if (sk) drawCharacter(g, sk, "d", 14, 17, 26, false, 0);
 }
 
-const skinName = (i) => (SKINS[i] && SKINS[i].name) || `Skin ${i + 1}`;
+function skinName(key) {
+  if (isCustom(key)) return (CUSTOM.find((c) => c.id === key) || {}).name || "Skin apagada";
+  return (SKINS[key] && SKINS[key].name) || `Skin ${key + 1}`;
+}
+
+function pickSkin(key) {
+  mySkin = key;
+  try { localStorage.setItem("ctib-skin", JSON.stringify(key)); } catch { /* ignore */ }
+  if (skinRoomMode) { send({ t: "skin", skin: key }); skinRoomMode = false; show("game"); }
+  else { buildSkinGrid(); drawSkinMini(); }
+}
 
 let skinGridKey = "";
 function buildSkinGrid() {
@@ -310,24 +373,88 @@ function buildSkinGrid() {
   if (skinRoomMode && S) for (const p of S.players) if (p.id !== myId && p.connected) takenBy[p.skin] = p.name;
   const current = me ? me.skin : mySkin; // na sala vale a skin que o servidor realmente deu
   // o servidor manda o estado 30x por segundo: refazer os cartões a cada um faria o clique se perder
-  const key = JSON.stringify([takenBy, current, SKINS.length, skinRoomMode]);
+  const myName = $("playerName").value.trim().toLowerCase();
+  const key = JSON.stringify([takenBy, current, SKINS.length, CUSTOM, skinRoomMode, myName]);
   if (key === skinGridKey && grid.children.length) return;
   skinGridKey = key;
-  grid.replaceChildren(...SKINS.map((sk, i) => {
+  const cards = allSkins().map((k) => {
     const c = el("canvas", { width: 80, height: 80 });
-    drawCharacter(c.getContext("2d"), sk, "d", 40, 46, 72, false, 0);
-    const taken = takenBy[i];
-    const card = el("div", { className: "skin" + (i === current ? " sel" : "") + (taken ? " taken" : ""), title: taken ? `Em uso por ${taken}` : "" },
-      c, taken ? `${skinName(i)} (${taken})` : skinName(i));
-    if (taken) return card;
-    card.onclick = () => {
-      mySkin = i;
-      try { localStorage.setItem("ctib-skin", i); } catch { /* ignore */ }
-      if (skinRoomMode) { send({ t: "skin", skin: i }); skinRoomMode = false; show("game"); }
-      else buildSkinGrid();
-    };
+    drawCharacter(c.getContext("2d"), skinOf(k), "d", 40, 46, 72, false, 0);
+    const taken = takenBy[k];
+    const info = isCustom(k) ? CUSTOM.find((x) => x.id === k) : null;
+    const card = el("div", { className: "skin" + (k === current ? " sel" : "") + (taken ? " taken" : ""), title: taken ? `Em uso por ${taken}` : "" },
+      c, taken ? `${skinName(k)} (${taken})` : skinName(k));
+    if (info && info.owner) card.append(el("small", { textContent: `por ${info.owner}` }));
+    if (info && info.owner && info.owner.toLowerCase() === myName) { // quem enviou pode apagar
+      const del = el("button", { className: "kick", textContent: "✖", title: "Apagar esta skin" });
+      del.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm(`Apagar a skin ${info.name}? Ela some para todos os jogadores.`)) send({ t: "skin_del", id: k, owner: $("playerName").value.trim() });
+      };
+      card.append(del);
+    }
+    if (!taken) card.onclick = () => pickSkin(k);
     return card;
-  }));
+  });
+  const add = el("div", { className: "skin add", title: "Enviar uma imagem sua como skin" }, el("span", { className: "plus", textContent: "+" }), "Adicionar skin");
+  add.onclick = openUpload;
+  grid.replaceChildren(...cards, add);
+}
+
+// ---------- enviar uma skin ----------
+let upload = null; // {url (data:), img}
+
+function openUpload() {
+  if (!$("playerName").value.trim()) { toast("Digite seu nome na tela inicial antes de enviar uma skin."); return; }
+  $("skinUpload").classList.remove("hidden");
+  $("skinUpload").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function closeUpload() {
+  upload = null;
+  $("upFile").value = ""; $("upName").value = ""; $("upCircle").checked = false;
+  $("upSend").disabled = false;
+  $("skinUpload").classList.add("hidden");
+  drawUploadPreview();
+}
+
+const readAsDataUrl = (file) => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(r.result);
+  r.onerror = rej;
+  r.readAsDataURL(file);
+});
+
+// imagens pequenas vão como estão; as grandes são reduzidas para no máximo 256 px (WebP, ou PNG se o navegador não fizer WebP)
+async function prepareImage(file) {
+  const src = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+    if (file.size <= 400 * 1024 && Math.max(img.width, img.height) <= 512 && /^image\/(png|jpeg|gif|webp)$/.test(file.type))
+      return { url: await readAsDataUrl(file), img };
+    const k = Math.min(1, 256 / Math.max(img.width, img.height));
+    const c = el("canvas", { width: Math.max(1, Math.round(img.width * k)), height: Math.max(1, Math.round(img.height * k)) });
+    const g = c.getContext("2d");
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, 0, 0, c.width, c.height);
+    let url = c.toDataURL("image/webp", 0.9);
+    if (!url.startsWith("data:image/webp")) url = c.toDataURL("image/png");
+    return { url, img: c };
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+}
+
+function drawUploadPreview() {
+  const c = $("upPreview"), g = c.getContext("2d");
+  g.clearRect(0, 0, c.width, c.height);
+  if (!upload) {
+    g.fillStyle = "#c9b08a"; g.font = "13px system-ui"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("prévia", c.width / 2, c.height / 2);
+    return;
+  }
+  const sk = customSkin(upload.img, { color: $("upColor").value, shape: $("upCircle").checked ? "circle" : "" });
+  drawCharacter(g, sk, "d", c.width / 2, c.height * 0.56, c.width * 0.8, false, 0);
 }
 
 // ---------- formulários ----------
@@ -414,13 +541,13 @@ function buildRoomForm() {
 }
 
 const fmtClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-const skinColor = (p) => (SKINS[p.skin % SKINS.length] || {}).color || "#888";
+const skinColor = (p) => (skinOf(p.skin) || {}).color || "#888";
 const dot = (p) => el("span", { className: "dot", style: `background:${skinColor(p)}` });
 
 // retrato pequeno da skin do jogador (listas e tabelas)
-function avatar(skinIdx, size = 28) {
+function avatar(skinKey, size = 28) {
   const c = el("canvas", { width: size, height: size, className: "avatar" });
-  const sk = SKINS[skinIdx % SKINS.length];
+  const sk = skinOf(skinKey);
   if (sk) drawCharacter(c.getContext("2d"), sk, "d", size / 2, size * 0.58, size * 0.92, false, 0);
   return c;
 }
@@ -693,7 +820,7 @@ function drawPlayers(players, dt, now) {
       ctx.strokeStyle = "rgba(90,190,255,.9)"; ctx.lineWidth = 3; ctx.fillStyle = "rgba(90,190,255,.18)";
       ctx.beginPath(); ctx.arc(cx, cy, TILE * 0.55, 0, 7); ctx.fill(); ctx.stroke();
     }
-    drawCharacter(ctx, SKINS[p.skin % SKINS.length], p.face, cx, cy, TILE, moving, now);
+    drawCharacter(ctx, skinOf(p.skin), p.face, cx, cy, TILE, moving, now);
     ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
     ctx.font = "bold 11px system-ui"; ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.fillStyle = "#fff";
     ctx.strokeText(p.name, cx, cy - TILE * 0.62); ctx.fillText(p.name, cx, cy - TILE * 0.62);
@@ -721,7 +848,10 @@ function frame(now) {
 // ---------- ligação dos botões ----------
 function init() {
   try { $("playerName").value = localStorage.getItem("ctib-name") || ""; } catch { /* ignore */ }
-  try { mySkin = Math.max(0, Math.min(SKINS.length - 1, parseInt(localStorage.getItem("ctib-skin") || "0", 10) || 0)); } catch { mySkin = 0; }
+  try { // número = skin do tema; texto = skin enviada (conferida quando chega a lista do servidor)
+    const saved = JSON.parse(localStorage.getItem("ctib-skin") || "0");
+    mySkin = isCustom(saved) ? saved : Math.max(0, Math.min(SKINS.length - 1, parseInt(saved, 10) || 0));
+  } catch { mySkin = 0; }
   buildSkinGrid();
   renderHistory();
   sizeCanvas();
@@ -730,7 +860,28 @@ function init() {
   $("rankClose").onclick = () => $("rankModal").classList.add("hidden");
   $("rankModal").onclick = (e) => { if (e.target === $("rankModal")) $("rankModal").classList.add("hidden"); };
   $("btnSkin").onclick = () => { buildSkinGrid(); show("skin"); };
+  $("upFile").onchange = async () => {
+    const f = $("upFile").files[0];
+    upload = null;
+    if (f) {
+      try { upload = await prepareImage(f); } catch { toast("Não consegui abrir essa imagem."); }
+      if (upload && !$("upName").value.trim()) $("upName").value = f.name.replace(/\.[^.]+$/, "").slice(0, 16);
+    }
+    drawUploadPreview();
+  };
+  $("upColor").oninput = $("upCircle").onchange = drawUploadPreview;
+  $("upCancel").onclick = closeUpload;
+  $("upSend").onclick = () => {
+    const owner = $("playerName").value.trim();
+    if (!owner) { toast("Digite seu nome na tela inicial antes de enviar uma skin."); return; }
+    if (!upload) { toast("Escolha uma imagem primeiro."); return; }
+    if (upload.url.length > 690000) { toast("Imagem grande demais (máximo 512 KB)."); return; }
+    $("upSend").disabled = true;
+    send({ t: "skin_add", owner, name: $("upName").value.trim(), color: $("upColor").value, shape: $("upCircle").checked ? "circle" : "", data: upload.url });
+  };
+  drawUploadPreview();
   $("skinBack").onclick = () => {
+    closeUpload();
     if (skinRoomMode) { skinRoomMode = false; show("game"); return; }
     drawSkinMini();
     show("title");

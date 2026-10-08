@@ -116,11 +116,12 @@ def spiral(w, h):
 
 
 class Room:
-    def __init__(self, rid, name, single, history):
+    def __init__(self, rid, name, single, history, custom_skins=()):
         self.id = rid
         self.name = name
         self.single = single
         self.history = history
+        self.custom_skins = custom_skins  # ids das skins enviadas pelos jogadores (texto); as do tema são números
         self.players = {}
         self.banned = set()  # nomes expulsos pelo gerente
         self.next_pid = 1
@@ -158,10 +159,15 @@ class Room:
     def _nskins(n):
         return max(MAX_PLAYERS, min(16, n))
 
+    def _valid_skin(self, skin, nskins):
+        if isinstance(skin, str):
+            return skin in self.custom_skins
+        return isinstance(skin, int) and 0 <= skin < nskins
+
     def _free_skin(self, skin, nskins):
         nskins = self._nskins(nskins)
         taken = {p.skin for p in self.connected()}
-        skin = skin if 0 <= skin < nskins else 0
+        skin = skin if self._valid_skin(skin, nskins) else 0
         if skin not in taken:
             return skin
         return next((s for s in range(nskins) if s not in taken), skin)
@@ -206,13 +212,15 @@ class Room:
         """Trata uma mensagem do jogador; devolve um texto de erro para mostrar a ele, se houver."""
         t = m.get("t")
         if t == "skin":
-            try:
-                skin = int(m.get("skin"))
-            except (TypeError, ValueError):
-                return None
+            skin = m.get("skin")
+            if not isinstance(skin, str):
+                try:
+                    skin = int(skin)
+                except (TypeError, ValueError):
+                    return None
             if self.phase != "lobby":
                 return "A skin só pode ser trocada no lobby."
-            if not 0 <= skin < p.nskins:
+            if not self._valid_skin(skin, p.nskins):
                 return None
             if any(q.skin == skin for q in self.connected() if q is not p):
                 return "Essa skin já está em uso por outro jogador."

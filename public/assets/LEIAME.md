@@ -83,6 +83,9 @@ Ou um spritesheet, com uma linha por direção e colunas de quadros de caminhada
 - `scale`: altura do desenho em tiles (1 = um tile; personagens altos usam 1.2–1.5).
 - `offsetY`: ajuste vertical em pixels (positivo desce). Os pés ficam alinhados ao fim do tile.
 
+As skins que os jogadores enviam pelo jogo (**Mudar skin → Adicionar skin**) não ficam aqui: o servidor as salva em
+`data/skins/` (fora de `public/`) e as mostra depois destas.
+
 Se houver menos de 8 skins, as que faltam são completadas com os personagens coloridos padrão
 (precisam existir pelo menos 6, um para cada jogador da sala). Se um arquivo não for encontrado, o navegador
 avisa no console (F12) e usa o padrão.

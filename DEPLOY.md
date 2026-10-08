@@ -34,8 +34,8 @@ Deploy from repo*. Os três definem a variável `PORT` sozinhos; o servidor já 
 
 > Planos gratuitos costumam **dormir** quando ninguém usa (a primeira conexão pode levar cerca de um minuto; o site
 > mostra "Sem conexão… tentando de novo" e conecta sozinho) e o disco é **temporário**: o ranking some quando o
-> servidor reinicia. Para manter o ranking, use um disco/volume persistente e aponte `HISTORY_FILE` para ele
-> (ex.: `/data/history.json`).
+> servidor reinicia. Para manter o ranking e as skins enviadas, use um disco/volume persistente e aponte
+> `HISTORY_FILE` e `SKINS_DIR` para ele (ex.: `/data/history.json` e `/data/skins`).
 >
 > Rode **uma única instância** do servidor: as salas ficam na memória do processo.
 
@@ -76,6 +76,7 @@ Assim só o seu site consegue abrir conexão (outros sites recebem 403). Vários
 | `HOST` | interface onde escuta | `0.0.0.0` |
 | `ALLOWED_ORIGINS` | sites autorizados a conectar, separados por vírgula | vazio = qualquer um |
 | `HISTORY_FILE` | onde salvar o ranking geral | `data/history.json` |
+| `SKINS_DIR` | pasta das skins enviadas pelos jogadores | `data/skins` |
 
 ## Alternativa sem hospedar nada: túnel
 

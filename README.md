@@ -37,6 +37,12 @@ Setas ou WASD para andar, **espaço** para soltar bomba, **E** ou **Shift** para
 - **Portais:** pise num portal para ser teletransportado ao par (3 pares coloridos, espelhados pelo centro). Só teleporta de novo depois que você sair do portal.
 - **Esteira:** um circuito de esteiras no sentido horário que arrasta jogadores e bombas (dá para andar contra ela). Por padrão os mapas **se alternam a cada rodada** (sem repetir até todos terem aparecido); o gerente pode fixar um mapa.
 
+## Skins dos jogadores
+Em **Mudar skin** → **Adicionar skin**, cada jogador envia uma imagem própria (PNG, JPG, GIF ou WebP; imagens grandes
+são reduzidas para 256 px). O servidor salva as imagens em `data/skins/` e a lista em `data/skins/skins.json`, e a
+skin aparece na hora para todos. Só quem enviou (pelo nome digitado) pode apagá-la; cada nome pode ter até 5 skins.
+Também dá para colocar imagens direto na pasta `data/skins/`: elas viram skins quando o servidor reinicia.
+
 ## Trocar visual (blocos, powerups, skins)
 Coloque as imagens nas subpastas de `public/assets/` (`powerups/`, `skins/`, `backgrounds/`, `fonts/`) e aponte para elas em `public/assets/theme.json`. Dá F5 e pronto, sem reiniciar o servidor. Detalhes e formato de spritesheet em [public/assets/LEIAME.md](public/assets/LEIAME.md).
 
@@ -46,7 +52,7 @@ A Vercel não roda WebSocket, então o site (`public/`) vai para a Vercel e o se
 [public/config.js](public/config.js).
 
 ## Estrutura
-- `server.py`: HTTP + WebSocket, salas e histórico. Variáveis: `PORT`, `HOST`, `ALLOWED_ORIGINS`, `HISTORY_FILE`.
+- `server.py`: HTTP + WebSocket, salas e histórico. Variáveis: `PORT`, `HOST`, `ALLOWED_ORIGINS`, `HISTORY_FILE`, `SKINS_DIR`.
 - `game.py`: regras de uma sala (rodadas, bombas, powerups, morte súbita, pontos).
 - `maps.py`: mapas. `bots.py`: IA dos bots.
 - `_arquivo/`: arquivos guardados que o jogo não usa (fora de `public/`, o servidor não os entrega).

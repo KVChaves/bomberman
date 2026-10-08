@@ -144,6 +144,19 @@ canvas.avatar { vertical-align: middle; margin-right: 8px; flex: none; filter: d
 .skin.sel::after { content: "✓"; position: absolute; top: -9px; right: -9px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; color: var(--ink); background: var(--gold); border: 2px solid var(--ink); }
 .skin.taken { opacity: .38; cursor: not-allowed; filter: grayscale(.8); }
 .skin.taken:hover { transform: none; box-shadow: inset 0 0 0 2px rgba(245,184,46,.1), 0 6px 14px rgba(0,0,0,.4); }
+.skin small { color: var(--dim); font-size: 11px; font-weight: 500; margin-top: -4px; }
+.skin .kick { position: absolute; top: 6px; left: 6px; margin: 0; }
+.skin.add { justify-content: center; border: 2px dashed var(--line); background: rgba(0,0,0,.22); color: var(--gold); font-family: var(--display); font-weight: 400; letter-spacing: 1px; }
+.skin.add .plus { font-size: 46px; line-height: 80px; height: 80px; }
+/* enviar skin */
+#skinUpload { width: 100%; max-width: 680px; }
+.up-body { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.up-body .form { flex: 1; min-width: 240px; }
+#upPreview { flex: none; background: rgba(0,0,0,.28); border: 1px solid rgba(255,220,160,.12); border-radius: 12px; }
+.form label.check { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; min-height: 44px; }
+.form label.check input { width: 18px; height: 18px; accent-color: var(--gold); }
+input[type=color] { padding: 4px; height: 44px; cursor: pointer; }
+input[type=file] { padding: 7px 10px; font-size: 13px; font-weight: 500; }
 
 /* ---------- partida ---------- */
 #screen-game { justify-content: flex-start; padding-top: 24px; }
