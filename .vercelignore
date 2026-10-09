@@ -1,0 +1,7 @@
+# Só a pasta public/ vai para a Vercel; o resto é do servidor ou é lixo.
+_arquivo
+data
+__pycache__
+*.py
+Dockerfile
+.dockerignore
