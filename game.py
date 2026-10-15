@@ -21,11 +21,21 @@ THROW_DIST = 3
 FLIGHT_TIME = 0.4
 INVULN_TIME, CURSE_TIME = 2.0, 10.0
 SHIELD_TIME = 30.0
+WIN_POINTS, DRAW_POINTS = 3, 1
+ICE_FACTOR = 0.9
+RAIN_INTERVAL, RAIN_WARN = 0.35, 1.0
+EVENT_FIRST, EVENT_MIN, EVENT_MAX = 12.0, 14.0, 24.0
+ROCK_WARN, ROCKS = 1.5, 3
+SD_STYLES = {"spiral": "Morte súbita: o campo fecha em espiral!", "columns": "Morte súbita: paredes pelos lados!",
+             "rows": "Morte súbita: paredes por cima e por baixo!", "rain": "Morte súbita: chuva de fogo!"}
+AIRDROP_KINDS = [k for k in ("bomb_up", "fire_up", "speed_up", "remote", "kick", "glove", "punch", "shield",
+                             "heart", "line_bomb", "power_bomb")]
 MAX_LIVES = 3
 SD_DELAY, SD_INTERVAL = 1.0, 0.2  # morte súbita
 PASS_COOLDOWN = 1.5  # depois de receber a caveira, não dá para devolvê-la logo
 
 COUNTDOWN, ROUND_OVER_TIME, FINAL_TIME = 3, 4, 10
+INTRO_TIME = 2.0  # título da rodada antes da contagem
 
 DIRS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 FACE = {"u": (0, -1), "d": (0, 1), "l": (-1, 0), "r": (1, 0)}
@@ -74,6 +84,7 @@ class Player:
         self.curse, self.curse_t, self.auto_t, self.pass_cd = "", 0.0, 0.0, 0.0
         self.warp_armed = True  # portal só teleporta de novo depois que você sai dele
         self.want_bomb = self.want_det = False
+        self.ice_dir = (0, 0)
 
     def abilities(self):
         return [k for k in ("remote", "bomb_pass", "wall_pass", "kick", "glove", "punch", "line_bomb")
@@ -103,6 +114,17 @@ class Bomb:
         return self.x + self.vx * self.prog, self.y + self.vy * self.prog, 0.0
 
 
+def edge_order(w, h, by_column):
+    """Casas fechadas de fora para dentro, duas faixas por vez (colunas esquerda/direita ou linhas de cima/baixo)."""
+    n, m = (w, h) if by_column else (h, w)
+    out = []
+    for i in range(1, (n - 1) // 2 + 1):
+        for j in range(1, m - 1):
+            for a in {i, n - 1 - i}:
+                out.append((a, j) if by_column else (j, a))
+    return out
+
+
 def spiral(w, h):
     x0, y0, x1, y1 = 1, 1, w - 2, h - 2
     out = []
@@ -129,6 +151,8 @@ class Room:
         self.next_pid = 1
         self.host = None
         self.map, self.rounds, self.round_time = "rotate", 3, 120
+        self.events, self.sd_var = False, True  # eventos no mapa e morte súbita variada (configuráveis)
+        self.event_id, self.event_msg = 0, ""
         self.map_queue = []  # mapas ainda não usados no modo "rotate"
         self.cur_map = "classic"
         self.now = 0.0
@@ -145,6 +169,9 @@ class Room:
             self.map = m["map"]
         elif m.get("map") in ("rotate", "random"):
             self.map = "rotate"
+        for key, attr in (("events", "events"), ("sd_var", "sd_var")):
+            if key in m:
+                setattr(self, attr, str(m[key]).lower() in ("1", "true", "on", "sim"))
         for key, attr, lo, hi in (("rounds", "rounds", 1, 20), ("time", "round_time", 30, 600)):
             try:
                 setattr(self, attr, max(lo, min(hi, int(m[key]))))
@@ -282,6 +309,9 @@ class Room:
         self.time_left = float(self.round_time)
         self.sudden = False
         self.sd_order, self.sd_i, self.sd_t = spiral(self.w, self.h), 0, 0.0
+        self.sd_style = "spiral"
+        self.warns = []  # [x, y, tipo, tempo restante]: rocha ou raio prestes a cair
+        self.ev_t = EVENT_FIRST
 
     def to_lobby(self):
         for pid in [i for i, p in self.players.items() if not p.connected]:
@@ -313,11 +343,10 @@ class Room:
         if self.round_no < self.rounds:
             self.start_round()
             return
-        ps = self.connected()
-        top = max((p.wins for p in ps), default=0)
-        tied = {p.id for p in ps if p.wins == top}
-        if len(tied) > 1:  # empate no fim: rodada extra só com os empatados
-            self.start_round(tied)
+        # fim das rodadas previstas: rodadas de desempate com todos, até haver um único líder em pontos
+        pts = sorted((p.points for p in self.connected()), reverse=True)
+        if len(pts) > 1 and pts[0] == pts[1]:
+            self.start_round()
         else:
             self.finish_match()
 
@@ -340,27 +369,27 @@ class Room:
         if only is None:
             self.round_humans = len([p for p in self.humans() if p.in_round])
         self.phase = "countdown"
-        self.timer = COUNTDOWN
+        self.timer = COUNTDOWN + INTRO_TIME
 
     def end_round(self, alive):
         self.phase = "over"
         self.timer = ROUND_OVER_TIME
+        self.warns = []
         w = alive[0] if len(alive) == 1 else None
         self.winner = w.id if w else None
         if w:
             w.wins += 1
-            if not w.bot and not self.single and self.round_humans >= 3:
-                w.points += self.round_humans - 2
+            w.points += WIN_POINTS
+        else:
+            for p in alive:  # empate: 1 ponto para cada último sobrevivente
+                p.points += DRAW_POINTS
 
     def finish_match(self):
-        ps = sorted(self.connected(), key=lambda p: (-p.wins, p.name))
-        top = ps[0].wins if ps else 0
-        n = self.round_humans
+        ps = sorted(self.connected(), key=lambda p: (-p.points, p.name))
+        top = ps[0].points if ps else 0
         for p in ps:
-            p.match_win = top > 0 and p.wins == top
-            if p.match_win and not p.bot and not self.single and n >= 3:
-                p.points += 2 * (n - 2)
-        self.final = [{"id": p.id, "name": p.name, "skin": p.skin, "wins": p.wins,
+            p.match_win = top > 0 and p.points == top
+        self.final = [{"id": p.id, "name": p.name, "skin": p.skin,
                        "points": p.points, "winner": p.match_win, "bot": p.bot} for p in ps]
         humans = [p for p in self.players.values() if not p.bot and p.played]  # inclui quem saiu no meio
         if not self.single and len(humans) >= 2:
@@ -398,11 +427,22 @@ class Room:
                 self.time_left -= TICK
                 if self.time_left <= 0:
                     self.time_left, self.sudden, self.sd_t = 0.0, True, SD_DELAY
+                    self.start_sudden()
             else:
                 self.sd_t -= TICK
                 while self.sd_t <= 0:
-                    self.sd_step()
-                    self.sd_t += SD_INTERVAL
+                    if self.sd_style == "rain":
+                        self.rain_step()
+                        self.sd_t += RAIN_INTERVAL
+                    else:
+                        self.sd_step()
+                        self.sd_t += SD_INTERVAL
+            if self.events and not self.sudden:
+                self.ev_t -= TICK
+                if self.ev_t <= 0:
+                    self.ev_t = random.uniform(EVENT_MIN, EVENT_MAX)
+                    self.map_event()
+            self.tick_warns()
             for p in self.players.values():
                 if p.alive:
                     self.update_player(p)
@@ -456,9 +496,21 @@ class Room:
         if p.curse == "reverse" and not p.bot:
             dx, dy = -dx, -dy
         speed = 2.2 if p.curse == "slow" else 8.5 if p.curse == "fast" else p.speed
+        sp = self.specials.get((int(p.x), int(p.y)))
+        floor = sp[0] if sp else ""
         if dx or dy:
+            if floor == "i":
+                p.ice_dir = (dx, dy)
             self.move(p, dx, dy, speed * TICK)
+        elif floor == "i" and p.ice_dir != (0, 0):  # no gelo, sem tecla, o jogador continua deslizando
+            ox, oy = p.x, p.y
+            self.move(p, *p.ice_dir, p.speed * ICE_FACTOR * TICK)
+            if (p.x, p.y) == (ox, oy):
+                p.ice_dir = (0, 0)
+        else:
+            p.ice_dir = (0, 0)
         self.floor_effects(p)
+
         if p.want_bomb:
             p.want_bomb = False
             self.place_bomb(p)
@@ -515,6 +567,71 @@ class Room:
             p.invuln_t = INVULN_TIME
         else:
             p.alive = False
+
+    # ---------- morte súbita variada e eventos do mapa ----------
+    def announce(self, msg):
+        self.event_id += 1
+        self.event_msg = msg
+
+    def start_sudden(self):
+        self.sd_style = random.choice(list(SD_STYLES)) if self.sd_var else "spiral"
+        if self.sd_style in ("columns", "rows"):
+            self.sd_order = edge_order(self.w, self.h, self.sd_style == "columns")
+        else:
+            self.sd_order = spiral(self.w, self.h)
+        self.sd_i = 0
+        self.warns = []
+        self.announce(SD_STYLES[self.sd_style])
+
+    def free_cells(self):
+        busy = {(int(p.x), int(p.y)) for p in self.players.values() if p.alive}
+        return [(x, y) for y in range(self.h) for x in range(self.w)
+                if self.grid[y][x] == EMPTY and (x, y) not in self.items and (x, y) not in self.bomb_at
+                and (x, y) not in self.specials and (x, y) not in busy]
+
+    def rain_step(self):
+        alive = [p for p in self.players.values() if p.alive]
+        for _ in range(2):
+            if alive and random.random() < 0.5:  # metade dos raios mira em jogadores, para a rodada terminar
+                q = random.choice(alive)
+                cell = (int(q.x), int(q.y))
+            else:
+                cell = (random.randrange(1, self.w - 1), random.randrange(1, self.h - 1))
+            if self.grid[cell[1]][cell[0]] != WALL and not any(w[0] == cell[0] and w[1] == cell[1] for w in self.warns):
+                self.warns.append([cell[0], cell[1], "strike", RAIN_WARN])
+
+    def map_event(self):
+        cells = self.free_cells()
+        if not cells:
+            return
+        if random.random() < 0.5:
+            x, y = random.choice(cells)
+            self.items[(x, y)] = random.choice(AIRDROP_KINDS)
+            self.announce("📦 Um suprimento caiu no mapa!")
+        else:
+            for x, y in random.sample(cells, min(ROCKS, len(cells))):
+                self.warns.append([x, y, "rock", ROCK_WARN])
+            self.announce("🪨 Rochas vão cair!")
+
+    def tick_warns(self):
+        for w in list(self.warns):
+            w[3] -= TICK
+            if w[3] > 0:
+                continue
+            self.warns.remove(w)
+            x, y, kind = w[0], w[1], w[2]
+            if kind == "strike":
+                if self.grid[y][x] == BLOCK:
+                    self.grid[y][x] = EMPTY
+                self.items.pop((x, y), None)
+                self.flames[(x, y)] = self.now + FLAME_TIME
+            else:  # rocha: machuca quem está embaixo; vira bloco se a casa estiver livre
+                under = [p for p in self.players.values() if p.alive and (int(p.x), int(p.y)) == (x, y)]
+                for p in under:
+                    self.hit(p)
+                if (not under and self.grid[y][x] == EMPTY and (x, y) not in self.bomb_at
+                        and (x, y) not in self.items and (x, y) not in self.specials):
+                    self.grid[y][x] = BLOCK
 
     def sd_step(self):
         while self.sd_i < len(self.sd_order):
@@ -697,6 +814,12 @@ class Room:
         self.bomb_at[(tx, ty)] = b
         b.passers = {q.id for q in self.players.values() if q.alive and self.overlaps_tile(q, tx, ty)}
 
+    def origin(self, b):
+        """Casa de onde a bomba explode: se está deslizando e já passou da metade, é a casa da frente."""
+        if (b.vx or b.vy) and b.prog >= 0.5 and self._bomb_cell_free(b.x + b.vx, b.y + b.vy, b):
+            return b.x + b.vx, b.y + b.vy
+        return b.x, b.y
+
     def blast(self, x, y, rng):
         """Células atingidas por uma bomba em (x, y); também blocos destruídos e bombas alcançadas."""
         cells, blocks, hit = [(x, y)], [], []
@@ -723,7 +846,7 @@ class Room:
             if b.done:
                 continue
             b.done = True
-            c, bl, hit = self.blast(b.x, b.y, b.range)
+            c, bl, hit = self.blast(*self.origin(b), b.range)
             cells.update(c)
             destroyed.update(bl)
             queue.extend(o for o in hit if not o.done)
@@ -744,7 +867,7 @@ class Room:
         if self._danger[0] != self.tick_n:
             d = {c: 0.0 for c in self.flames}
             for b in self.bombs:
-                for c in self.blast(b.x, b.y, b.range)[0]:
+                for c in self.blast(*self.origin(b), b.range)[0]:
                     d[c] = min(d.get(c, 9.0), b.t)
             self._danger = (self.tick_n, d)
         return self._danger[1]
@@ -781,10 +904,16 @@ class Room:
         return {
             "t": "state", "room": self.name, "phase": self.phase, "host": self.host,
             "map": self.cur_map, "w": self.w, "h": self.h,
-            "settings": {"map": self.map, "rounds": self.rounds, "time": self.round_time},
+            "settings": {"map": self.map, "rounds": self.rounds, "time": self.round_time,
+                         "events": self.events, "sd_var": self.sd_var},
+            "sd_style": self.sd_style if self.sudden else "",
+            "event": {"id": self.event_id, "msg": self.event_msg},
+            "warn": [[w[0], w[1], w[2], round(w[3], 2)] for w in self.warns],
             "round": self.round_no, "rounds": self.rounds,
+            "tiebreak": self.round_no > self.rounds and self.phase in ("countdown", "playing", "over"),
             "time_left": math.ceil(self.time_left), "sudden": self.sudden,
-            "countdown": math.ceil(self.timer) if self.phase == "countdown" else 0,
+            "countdown": math.ceil(min(self.timer, COUNTDOWN)) if self.phase == "countdown" else 0,
+            "intro": self.phase == "countdown" and self.timer > COUNTDOWN,
             "winner": self.winner, "final": self.final if self.phase == "final" else [],
             "grid": "".join(str(c) for row in self.grid for c in row),
             "players": [
@@ -792,7 +921,7 @@ class Room:
                  "alive": p.alive, "ready": p.ready, "connected": p.connected, "waiting": p.waiting,
                  "bot": p.bot, "face": p.face, "bombs": p.max_bombs, "range": p.range,
                  "speed": round(p.speed, 1), "wins": p.wins, "points": p.points, "lives": p.lives,
-                 "shield": p.shield, "invuln": p.invuln_t > 0, "curse": p.curse,
+                 "shield": p.shield, "shield_t": math.ceil(p.shield_t) if p.shield else 0, "invuln": p.invuln_t > 0, "curse": p.curse,
                  "curse_t": math.ceil(p.curse_t) if p.curse else 0,
                  "abil": p.abilities()}
                 for p in sorted(self.connected(), key=lambda p: p.id)
@@ -801,5 +930,6 @@ class Room:
             "flames": [[x, y, round(exp - self.now, 2)] for (x, y), exp in self.flames.items()],
             "items": [[x, y, k] for (x, y), k in self.items.items()],
             "specials": [[x, y, "b", {(1, 0): "r", (-1, 0): "l", (0, 1): "d", (0, -1): "u"}[sp[1]]] if sp[0] == "b"
-                         else [x, y, "w", sp[2]] for (x, y), sp in self.specials.items()],
+                         else [x, y, "w", sp[2]] if sp[0] == "w" else [x, y, sp[0]]
+                         for (x, y), sp in self.specials.items()],
         }

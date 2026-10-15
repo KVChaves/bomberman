@@ -20,6 +20,7 @@ const MAP_STYLE = {
   maze: { floor: ["#3f7a3a", "#488544"], wall: ["#1f4d22", "#2f7a33", "#12311a"], block: ["#a86b3a", "#6a3f1d"] },
   towers: { floor: ["#8a8f99", "#80858f"], wall: ["#4b5568", "#7c8aa6", "#2c3345"], block: ["#d9c27a", "#8a7433"] },
   fortress: { floor: ["#6d4d3a", "#745340"], wall: ["#3a2a22", "#5c4538", "#1f1612"], block: ["#c4553a", "#7a2a1a"] },
+  ice: { floor: ["#cfe9f5", "#c2e0ee"], wall: ["#4f7a96", "#8fc0dc", "#2f5068"], block: ["#f2fbff", "#8cb9cf"] },
 };
 
 // powerups: cor, ícone, nome, descrição
@@ -168,6 +169,7 @@ let ws, S = null, myId = null;
 let maps = [], rooms = [], history = [];
 let screen = "title", lastMode = "multi", reconnecting = false;
 let mySkin = 0;
+let lastEventId = null;
 let skinRoomMode = false, skinChecked = false; // escolhendo skin de dentro de uma sala
 const vis = {}; // posição suavizada dos jogadores
 
@@ -241,9 +243,10 @@ function connect() {
       case "skin_added": closeUpload(); pickSkin(m.id); toast("Skin salva! Todos os jogadores já podem vê-la."); break;
       case "rooms": rooms = m.rooms; if (screen === "multi") renderRooms(); break;
       case "history": history = m.rows; renderHistory(); break;
-      case "you": myId = m.id; skinChecked = false; prevCurse = null; break;
+      case "you": lastEventId = null; myId = m.id; skinChecked = false; prevCurse = null; break;
       case "state":
         S = m;
+        if (S.event && S.event.msg && S.event.id !== lastEventId) { if (lastEventId !== null) toast(S.event.msg); lastEventId = S.event.id; }
         if (skinRoomMode && S.phase !== "lobby") { skinRoomMode = false; show("game"); } // a partida começou
         if (screen !== "game" && !skinRoomMode) { show("game"); roomFormBuilt = false; }
         updateUI();
@@ -452,16 +455,19 @@ function select(opts, value, onchange) {
 }
 const mapOptions = () => [["rotate", "Alternar a cada rodada"], ...maps.map((m) => [m.id, m.name])];
 const roundOptions = () => ROUND_OPTS.map((n) => [n, `${n} ${n === 1 ? "rodada" : "rodadas"}`]);
+const onOff = () => [["1", "Ativado"], ["0", "Desativado"]];
 const timeOptions = () => TIME_OPTS.map((n) => [n, fmtTime(n)]);
 
 const forms = {};
 function buildForms() {
-  forms.single = { map: select(mapOptions(), "rotate"), bots: select([1, 2, 3, 4, 5].map((n) => [n, `${n} ${n === 1 ? "bot" : "bots"}`]), 3), rounds: select(roundOptions(), 3), time: select(timeOptions(), 120) };
+  forms.single = { map: select(mapOptions(), "rotate"), bots: select([1, 2, 3, 4, 5].map((n) => [n, `${n} ${n === 1 ? "bot" : "bots"}`]), 3), rounds: select(roundOptions(), 3), time: select(timeOptions(), 120), events: select(onOff(), "0"), sd_var: select(onOff(), "1") };
   $("singleForm").replaceChildren(field("Mapa", forms.single.map), field("Adversários", forms.single.bots),
-    field("Rodadas", forms.single.rounds), field("Tempo de cada rodada", forms.single.time));
-  forms.create = { room: el("input", { maxLength: 24, placeholder: "Nome da sala" }), map: select(mapOptions(), "rotate"), rounds: select(roundOptions(), 3), time: select(timeOptions(), 120) };
+    field("Rodadas", forms.single.rounds), field("Tempo de cada rodada", forms.single.time),
+    field("Eventos no mapa", forms.single.events), field("Morte súbita variada", forms.single.sd_var));
+  forms.create = { room: el("input", { maxLength: 24, placeholder: "Nome da sala" }), map: select(mapOptions(), "rotate"), rounds: select(roundOptions(), 3), time: select(timeOptions(), 120), events: select(onOff(), "0"), sd_var: select(onOff(), "1") };
   $("createForm").replaceChildren(field("Nome da sala", forms.create.room), field("Mapa", forms.create.map),
-    field("Rodadas", forms.create.rounds), field("Tempo de cada rodada", forms.create.time));
+    field("Rodadas", forms.create.rounds), field("Tempo de cada rodada", forms.create.time),
+    field("Eventos no mapa", forms.create.events), field("Morte súbita variada", forms.create.sd_var));
   roomFormBuilt = false;
 }
 
@@ -514,11 +520,14 @@ const rf = {};
 
 function buildRoomForm() {
   roomFormBuilt = true;
-  const change = () => send({ t: "settings", map: rf.map.value, rounds: rf.rounds.value, time: rf.time.value });
+  const change = () => send({ t: "settings", map: rf.map.value, rounds: rf.rounds.value, time: rf.time.value, events: rf.events.value, sd_var: rf.sd_var.value });
   rf.map = select(mapOptions(), "rotate", change);
   rf.rounds = select(roundOptions(), 3, change);
   rf.time = select(timeOptions(), 120, change);
-  $("roomSettings").replaceChildren(field("Mapa", rf.map), field("Rodadas", rf.rounds), field("Tempo da rodada", rf.time));
+  rf.events = select(onOff(), "0", change);
+  rf.sd_var = select(onOff(), "1", change);
+  $("roomSettings").replaceChildren(field("Mapa", rf.map), field("Rodadas", rf.rounds), field("Tempo da rodada", rf.time),
+    field("Eventos no mapa", rf.events), field("Morte súbita variada", rf.sd_var));
 }
 
 const fmtClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -533,7 +542,16 @@ function avatar(skinKey, size = 28) {
   return c;
 }
 
+function buildLegend() {
+  if (buildLegend.done) return;
+  buildLegend.done = true;
+  $("legendList").replaceChildren(...Object.entries(ITEMS).map(([, [col, icon, name, desc]]) =>
+    el("li", {}, el("span", { className: "lg-ic", style: `background:${col}`, textContent: icon }),
+      el("span", {}, el("b", { textContent: name }), " — " + desc))));
+}
+
 function updateUI() {
+  buildLegend();
   if (S.w !== W || S.h !== H) { W = S.w; H = S.h; sizeCanvas(); }
   const me = S.players.find((p) => p.id === myId);
   if (!me) myId = null;
@@ -547,7 +565,7 @@ function updateUI() {
 
   // formulário de configurações (só o gerente edita)
   if (!roomFormBuilt) buildRoomForm();
-  for (const [k, v] of [["map", S.settings.map], ["rounds", S.settings.rounds], ["time", S.settings.time]]) {
+  for (const [k, v] of [["map", S.settings.map], ["rounds", S.settings.rounds], ["time", S.settings.time], ["events", S.settings.events ? 1 : 0], ["sd_var", S.settings.sd_var ? 1 : 0]]) {
     rf[k].disabled = !isHost;
     if (document.activeElement !== rf[k]) rf[k].value = String(v);
   }
@@ -564,7 +582,11 @@ function updateUI() {
   $("roomTitle").textContent = S.room;
 
   let msg = "";
-  if (S.phase === "countdown") msg = String(S.countdown);
+  const showTitle = S.phase === "countdown";
+  $("roundTitle").classList.toggle("hidden", !showTitle);
+  $("roundTitle").textContent = S.tiebreak ? "RODADA DE DESEMPATE" : `RODADA ${S.round}/${S.rounds}`;
+  $("roundTitle").classList.toggle("big", !!S.intro);
+  if (S.phase === "countdown") msg = S.intro ? "" : String(S.countdown);
   else if (S.phase === "over") {
     const w = S.players.find((p) => p.id === S.winner);
     msg = w ? `${w.name} venceu a rodada!` : S.winner ? "Rodada encerrada" : "Empate!";
@@ -585,9 +607,8 @@ function updateUI() {
 
   renderOnce($("finalTable"), S.final, () => {
     const rows = S.final.map((f, i) => el("tr", {}, el("td", { className: "medal", textContent: f.winner ? "🏆" : i + 1 }),
-      el("td", {}, avatar(f.skin, 30), f.name), el("td", { className: "num", textContent: f.wins }),
-      el("td", { className: "num", textContent: f.bot ? "—" : f.points })));
-    return [el("thead", {}, el("tr", {}, el("th"), el("th", { textContent: "Jogador" }), el("th", { className: "num", textContent: "Rodadas" }), el("th", { className: "num", textContent: "Pontos" }))), el("tbody", {}, ...rows)];
+      el("td", {}, avatar(f.skin, 30), f.name),       el("td", { className: "num", textContent: f.points })));
+    return [el("thead", {}, el("tr", {}, el("th"), el("th", { textContent: "Jogador" }), el("th", { className: "num", textContent: "Pontos" }))), el("tbody", {}, ...rows)];
   });
 
   // aviso sobre o campo
@@ -599,28 +620,32 @@ function updateUI() {
   $("banner").textContent = banner;
   $("banner").classList.toggle("hidden", !banner);
 
+  const st = $("shieldTimer");
+  const showShield = !!(me && me.alive && me.shield && S.phase === "playing");
+  st.classList.toggle("hidden", !showShield);
+  if (showShield) { st.textContent = `🛡️ ${me.shield_t}s`; st.classList.toggle("low", me.shield_t <= 5); }
   trackCurses(me);
   if (S.phase !== "playing") $("curseMsg").classList.add("hidden");
 
   // HUD
-  renderOnce($("roundInfo"), [lobby, S.room, S.rounds, S.round, S.sudden, S.time_left], () => {
+  renderOnce($("roundInfo"), [lobby, S.room, S.rounds, S.round, S.tiebreak, S.sudden, S.time_left], () => {
     if (lobby) return [el("span", { textContent: S.room }), el("span", { textContent: `${S.rounds} rodadas` })];
-    return [el("span", { textContent: `Rodada ${S.round}/${S.rounds}` }),
-      S.sudden ? el("span", { className: "sd", textContent: "MORTE SÚBITA!" })
+    return [el("span", { className: S.tiebreak ? "tie" : "", textContent: S.tiebreak ? "DESEMPATE" : `Rodada ${S.round}/${S.rounds}` }),
+      S.sudden ? el("span", { className: "sd", textContent: S.sd_style === "rain" ? "CHUVA DE FOGO!" : "MORTE SÚBITA!" })
         : el("span", { className: "clock" + (S.time_left <= 10 ? " low" : ""), textContent: `⏱ ${fmtClock(S.time_left)}` })];
   });
 
   // mais pontos primeiro (empate: mais vitórias, depois ordem de entrada)
-  const ranked = [...S.players].sort((a, b) => b.points - a.points || b.wins - a.wins || a.id - b.id);
-  renderOnce($("scoreTable"), [ranked.map((p) => [p.id, p.name, p.wins, p.points, p.alive, p.waiting, p.lives, p.shield, p.curse, p.connected]), isHost], () => {
+  const ranked = [...S.players].sort((a, b) => b.points - a.points || a.id - b.id);
+  renderOnce($("scoreTable"), [ranked.map((p) => [p.id, p.name, p.points, p.alive, p.waiting, p.lives, p.shield, p.curse, p.connected]), isHost], () => {
     const rows = ranked.map((p) => {
       const tags = (p.waiting ? "⏳" : "") + (p.lives ? "❤️".repeat(p.lives) : "") + (p.shield ? "🛡️" : "") + (p.curse ? "💀" : "") + (p.connected ? "" : " ✖");
       const tr = el("tr", { className: (p.alive || lobby ? "" : "dead") + (p.id === myId ? " me" : "") },
-        el("td", { title: p.name }, avatar(p.skin, 26), p.name), el("td", { className: "num", textContent: p.wins }),
+        el("td", { title: p.name }, avatar(p.skin, 26), p.name),
         el("td", { className: "num", textContent: p.points }), el("td", { textContent: tags }, canKick(p) ? kickBtn(p) : ""));
       return tr;
     });
-    return [el("thead", {}, el("tr", {}, el("th", { textContent: "Jogador" }), el("th", { className: "num", textContent: "Vit." }), el("th", { className: "num", textContent: "Pts" }), el("th"))), el("tbody", {}, ...rows)];
+    return [el("thead", {}, el("tr", {}, el("th", { textContent: "Jogador" }), el("th", { className: "num", textContent: "Pts" }), el("th"))), el("tbody", {}, ...rows)];
   });
 
   renderOnce($("myPowers"), me && [me.bombs, me.range, me.speed, me.abil, me.curse, me.curse_t, me.lives], () => {
@@ -734,6 +759,11 @@ function drawSpecials(specials, now) {
         ctx.beginPath(); ctx.moveTo(px - 5, -9); ctx.lineTo(px + 3, 0); ctx.lineTo(px - 5, 9); ctx.stroke();
       }
       ctx.restore();
+    } else if (kind === "i") { // gelo: azul claro com reflexos
+      ctx.fillStyle = "rgba(170,225,255,.5)"; ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      ctx.strokeStyle = "rgba(255,255,255,.75)"; ctx.lineWidth = 2; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(x * TILE + 8, y * TILE + 14); ctx.lineTo(x * TILE + 20, y * TILE + 8);
+      ctx.moveTo(x * TILE + TILE - 22, y * TILE + TILE - 8); ctx.lineTo(x * TILE + TILE - 10, y * TILE + TILE - 15); ctx.stroke();
     } else { // portal: redemoinho colorido; cada par tem uma cor
       const col = PORTAL_COLORS[extra % PORTAL_COLORS.length], r = TILE * 0.4;
       ctx.fillStyle = "rgba(10,8,30,.8)";
@@ -759,6 +789,18 @@ function drawItems(items, now) {
     ctx.beginPath(); ctx.roundRect(x * TILE + 6, y * TILE + 6 + bob, TILE - 12, TILE - 12, 8); ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,.7)"; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.fillText(icon, x * TILE + TILE / 2, y * TILE + TILE / 2 + 1 + bob);
+  }
+}
+
+function drawWarns(warns, now) {
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "20px system-ui, 'Noto Color Emoji'";
+  for (const [x, y, kind] of warns) {
+    const pulse = 0.5 + 0.5 * Math.sin(now / 90);
+    ctx.fillStyle = kind === "rock" ? `rgba(255,170,40,${0.2 + pulse * 0.3})` : `rgba(255,50,30,${0.2 + pulse * 0.35})`;
+    ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+    ctx.strokeStyle = kind === "rock" ? "#ffb347" : "#ff4a30"; ctx.lineWidth = 3;
+    ctx.strokeRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4);
+    ctx.fillStyle = "#fff"; ctx.fillText(kind === "rock" ? "🪨" : "⚠️", (x + 0.5) * TILE, (y + 0.5) * TILE + 1);
   }
 }
 
@@ -829,6 +871,7 @@ function frame(now) {
     drawGrid(S.grid, st, ts);
     drawItems(S.items, now);
     drawFlames(S.flames);
+    drawWarns(S.warn || [], now);
     drawBombs(S.bombs, now);
     drawPlayers(S.players, dt, now);
   }
@@ -880,7 +923,7 @@ function init() {
     const p = playerInfo(), f = forms.single;
     if (!p) return;
     lastMode = "single";
-    send({ t: "create", single: true, bots: f.bots.value, map: f.map.value, rounds: f.rounds.value, time: f.time.value, ...p });
+    send({ t: "create", single: true, bots: f.bots.value, map: f.map.value, rounds: f.rounds.value, time: f.time.value, events: f.events.value, sd_var: f.sd_var.value, ...p });
   };
   $("btnMulti").onclick = () => { if (playerInfo()) { send({ t: "rooms" }); show("multi"); } };
   $("multiBack").onclick = () => {
@@ -894,7 +937,7 @@ function init() {
     const p = playerInfo(), f = forms.create;
     if (!p) return;
     lastMode = "multi";
-    send({ t: "create", room: f.room.value, map: f.map.value, rounds: f.rounds.value, time: f.time.value, ...p });
+    send({ t: "create", room: f.room.value, map: f.map.value, rounds: f.rounds.value, time: f.time.value, events: f.events.value, sd_var: f.sd_var.value, ...p });
     $("createForm").classList.add("hidden"); $("createConfirm").classList.add("hidden"); $("btnCreate").classList.remove("hidden");
   };
   $("playerName").onkeydown = (e) => { if (e.key === "Enter") $("btnMulti").click(); };

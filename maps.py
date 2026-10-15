@@ -2,6 +2,7 @@
 
 Cada mapa é uma regra (x, y, w, h) -> caractere:
   '#' parede indestrutível, '.' bloco destrutível sorteado, 'o' bloco destrutível fixo, '_' chão livre,
+  'i' gelo (piso sem bloco),
   'w' portal (o par fica na posição espelhada do mapa), '>' '<' 'v' '^' esteira (empurra para essa direção).
 Portais e esteiras são chão livre: nunca recebem bloco.
 A borda é sempre parede. Os 6 pontos de partida são os mesmos em todos os mapas (veja spawn_points).
@@ -11,6 +12,7 @@ from collections import deque
 
 EMPTY, WALL, BLOCK = 0, 1, 2
 DIRS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+FLOORS = {"i"}  # piso de gelo (desliza)
 SPECIAL_DIRS = {">": (1, 0), "<": (-1, 0), "v": (0, 1), "^": (0, -1)}
 
 
@@ -118,6 +120,59 @@ def _fortress(x, y, w, h):
     return "."
 
 
+def _columns(x, y, w, h):
+    return "#" if x in (3, 7, 11) and y in (3, 5, 7, 9) else "."
+
+
+def _rings(x, y, w, h):
+    dx, dy = x - w // 2, y - h // 2
+    if max(abs(dx), abs(dy)) == 3 and dx and dy:
+        return "#"
+    if (dx, dy) == (0, 0):
+        return "_"
+    if max(abs(dx), abs(dy)) == 1:
+        return "o"
+    return "."
+
+
+def _grid3(x, y, w, h):
+    return "#" if x % 3 == 0 and y % 3 == 0 else "."
+
+
+def _converge(x, y, w, h):
+    cx, cy = w // 2, h // 2
+    if y == cy and 2 <= x < cx - 1:
+        return ">"
+    if y == cy and cx + 1 < x <= w - 3:
+        return "<"
+    if x == cx and 2 <= y < cy - 1:
+        return "v"
+    if x == cx and cy + 1 < y <= h - 3:
+        return "^"
+    return _classic(x, y, w, h) if (x, y) != (cx, cy) else "_"
+
+
+_TELEPORT = {(3, 5), (11, 7), (11, 5), (3, 7), (7, 3), (7, 9)}
+
+
+def _teleport(x, y, w, h):
+    return "w" if (x, y) in _TELEPORT else "."
+
+
+def _river(x, y, w, h):
+    return "#" if y == h // 2 and x not in (3, 7, 11) else "."
+
+
+def _ice(x, y, w, h):
+    if x % 2 == 0 and y % 2 == 0:
+        return "#"
+    return "i" if 3 <= x <= w - 4 and 3 <= y <= h - 4 else "."
+
+
+def _open(x, y, w, h):
+    return "."
+
+
 MAPS = {
     "classic": dict(name="Clássico", w=15, h=13, rule=_classic, density=0.75),
     "arena": dict(name="Arena Aberta", w=15, h=13, rule=_arena, density=0.55),
@@ -131,6 +186,14 @@ MAPS = {
     "maze": dict(name="Labirinto", w=15, h=13, rule=_maze, density=0.6),
     "towers": dict(name="Torres", w=15, h=13, rule=_towers, density=0.7),
     "fortress": dict(name="Fortaleza", w=15, h=13, rule=_fortress, density=0.7),
+    "columns": dict(name="Colunas", w=15, h=13, rule=_columns, density=0.7),
+    "rings": dict(name="Anéis", w=15, h=13, rule=_rings, density=0.7),
+    "grid3": dict(name="Pátio", w=15, h=13, rule=_grid3, density=0.7),
+    "converge": dict(name="Convergência", w=15, h=13, rule=_converge, density=0.7),
+    "teleport": dict(name="Teletransporte", w=15, h=13, rule=_teleport, density=0.65),
+    "river": dict(name="Rio", w=15, h=13, rule=_river, density=0.7),
+    "ice": dict(name="Pista de Gelo", w=15, h=13, rule=_ice, density=0.7),
+    "open": dict(name="Campo Livre", w=15, h=13, rule=_open, density=0.45),
 }
 ORDER = list(MAPS)
 
@@ -157,6 +220,8 @@ def build_specials(map_id):
             c = _cell(m, x, y)
             if c in SPECIAL_DIRS:
                 out[(x, y)] = ("b", SPECIAL_DIRS[c])
+            elif c in FLOORS:
+                out[(x, y)] = (c,)
             elif c == "w":
                 partner = (w - 1 - x, h - 1 - y)
                 pid = pairs.setdefault(min((x, y), partner), len(pairs))
