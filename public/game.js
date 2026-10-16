@@ -600,7 +600,8 @@ function updateUI() {
   if (fin) {
     const ppl = S.players.filter((p) => p.connected);
     $("rematchBtn").textContent = me && me.ready ? "Cancelar" : "Pronto para nova partida";
-    $("finalStatus").textContent = `${ppl.filter((p) => p.ready).length} de ${ppl.length} prontos. A nova partida começa quando todos estiverem prontos.`;
+    const falta = ppl.filter((p) => !p.ready).map((p) => p.name);
+    $("finalStatus").textContent = `${ppl.length - falta.length} de ${ppl.length} prontos. ` + (falta.length ? `Faltam: ${falta.join(", ")}.` : "Começando…");
   }
   $("roomTitle").textContent = S.room;
 
@@ -671,12 +672,22 @@ function updateUI() {
     return [el("thead", {}, el("tr", {}, el("th", { textContent: "Jogador" }), el("th", { className: "num", textContent: "Pts" }), el("th"))), el("tbody", {}, ...rows)];
   });
 
-  renderOnce($("myPowers"), me && [me.bombs, me.range, me.speed, me.abil, me.curse, me.curse_t, me.lives], () => {
+  const powIcon = (k, label) => A.items[k]
+    ? el("img", { className: "pw-img" + (A.pixelArt ? " px" : ""), src: A.items[k].src, alt: ITEMS[k][2] })
+    : el("span", { textContent: ITEMS[k][1] });
+  renderOnce($("myPowers"), me && [me.bombs, me.range, me.speed, me.abil, me.curse, me.curse_t, me.lives, me.shield, me.shield_t], () => {
     if (!me) return [];
-    const out = [el("span", { textContent: `💣 ${me.bombs}`, title: "Bombas" }), el("span", { textContent: `🔥 ${me.range}`, title: "Alcance" }), el("span", { textContent: `👟 ${me.speed}`, title: "Velocidade" })];
+    const out = [];
+    const up = (k, n) => n > 0 && out.push(el("span", { className: "pw", title: `${ITEMS[k][2]}: ${ITEMS[k][3]}` }, powIcon(k), `+${n}`));
+    up("bomb_up", me.bombs - 1);
+    up("fire_up", me.range - 2);
+    up("speed_up", Math.round((me.speed - 4) / 0.6));
     const count = {};
     for (const a of me.abil) count[a] = (count[a] || 0) + 1;
-    for (const [a, n] of Object.entries(count)) out.push(el("span", { textContent: ITEMS[a][1] + (n > 1 ? `×${n}` : ""), title: ITEMS[a][2] }));
+    for (const [a, n] of Object.entries(count)) out.push(el("span", { className: "pw", title: `${ITEMS[a][2]}: ${ITEMS[a][3]}` }, powIcon(a), n > 1 ? `×${n}` : ""));
+    if (me.lives) out.push(el("span", { className: "pw", title: `${ITEMS.heart[2]}: ${ITEMS.heart[3]}` }, powIcon("heart"), me.lives > 1 ? `×${me.lives}` : ""));
+    if (me.shield) out.push(el("span", { className: "pw", title: `${ITEMS.shield[2]}: ${ITEMS.shield[3]}` }, powIcon("shield"), `${me.shield_t}s`));
+    if (!out.length && !me.curse) out.push(el("span", { className: "pw none", textContent: "Nenhum poder ativo" }));
     if (me.curse) out.push(el("span", { className: "curse", textContent: `💀 ${CURSE_NAMES[me.curse]} · ${me.curse_t}s`, title: CURSE_INFO[me.curse][1] }));
     return out;
   });

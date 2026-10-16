@@ -76,6 +76,13 @@
   <!-- ===== Sala / partida ===== -->
   <section id="screen-game" class="screen hidden">
     <main>
+        <section id="chat" aria-label="Chat da sala">
+          <ul id="chatLog"></ul>
+          <form id="chatForm" autocomplete="off">
+            <input id="chatInput" maxlength="200" placeholder="Escreva uma mensagem (Enter para falar)" aria-label="Mensagem">
+            <button type="submit">Enviar</button>
+          </form>
+        </section>
       <div id="playCol">
         <div id="stage">
           <canvas id="game"></canvas>
@@ -99,13 +106,6 @@
             </div>
           </div>
         </div>
-        <section id="chat" aria-label="Chat da sala">
-          <ul id="chatLog"></ul>
-          <form id="chatForm" autocomplete="off">
-            <input id="chatInput" maxlength="200" placeholder="Escreva uma mensagem (Enter para falar)" aria-label="Mensagem">
-            <button type="submit">Enviar</button>
-          </form>
-        </section>
       </div>
       <aside id="hud">
         <div id="roundInfo"></div>
