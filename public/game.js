@@ -157,6 +157,8 @@ async function loadTheme() {
     const alias = Object.keys(ITEM_ALIAS).find((a) => ITEM_ALIAS[a] === k);
     A.items[k] = await loadImg(items[k] || (alias && items[alias]));
   }
+  buildLegend.done = false;
+  buildLegend();
   A.bomb = await loadImg(t.bomb);
   A.flame = await loadImg(t.flame);
   const defs = t.skins || t.players || [];
@@ -170,10 +172,20 @@ let maps = [], rooms = [], history = [];
 let screen = "title", lastMode = "multi", reconnecting = false;
 let mySkin = 0;
 let lastEventId = null;
+const CHAT_LIMIT = 80; // mensagens mantidas na tela
 let skinRoomMode = false, skinChecked = false; // escolhendo skin de dentro de uma sala
 const vis = {}; // posição suavizada dos jogadores
 
 function send(obj) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
+
+function addChat(m) {
+  const log = $("chatLog");
+  const atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 24;
+  const color = (skinOf(m.skin) || {}).color || "#c9b08a";
+  log.append(el("li", {}, el("b", { textContent: m.name, style: `color:${color}` }), ": ", el("span", { textContent: m.text })));
+  while (log.children.length > CHAT_LIMIT) log.firstChild.remove();
+  if (atEnd) log.scrollTop = log.scrollHeight;
+}
 
 function toast(msg) {
   const t = $("toast");
@@ -243,7 +255,8 @@ function connect() {
       case "skin_added": closeUpload(); pickSkin(m.id); toast("Skin salva! Todos os jogadores já podem vê-la."); break;
       case "rooms": rooms = m.rooms; if (screen === "multi") renderRooms(); break;
       case "history": history = m.rows; renderHistory(); break;
-      case "you": lastEventId = null; myId = m.id; skinChecked = false; prevCurse = null; break;
+      case "chat": addChat(m); break;
+      case "you": lastEventId = null; $("chatLog").replaceChildren(); myId = m.id; skinChecked = false; prevCurse = null; break;
       case "state":
         S = m;
         if (S.event && S.event.msg && S.event.id !== lastEventId) { if (lastEventId !== null) toast(S.event.msg); lastEventId = S.event.id; }
@@ -281,6 +294,7 @@ function sendDir() {
 
 addEventListener("keydown", (e) => {
   if (screen !== "game" || ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+  if (e.code === "Enter" && !e.repeat) { e.preventDefault(); $("chatInput").focus(); return; }
   if (e.code === "Space") {
     e.preventDefault();
     if (document.activeElement && document.activeElement.tagName === "BUTTON") document.activeElement.blur();
@@ -487,14 +501,13 @@ function playerInfo() {
 function renderHistory() {
   const tb = $("historyTable").tBodies[0];
   if (!history.length) {
-    tb.replaceChildren(el("tr", {}, el("td", { colSpan: 6, className: "note", textContent: "Ninguém pontuou ainda. Jogue uma partida multiplayer com 3 ou mais jogadores!" })));
+    tb.replaceChildren(el("tr", {}, el("td", { colSpan: 8, className: "note", textContent: "Ninguém pontuou ainda. Jogue uma partida multiplayer com 3 ou mais pessoas!" })));
     return;
   }
   const mine = $("playerName").value.trim().toLowerCase();
   tb.replaceChildren(...history.map((r, i) => el("tr", { className: r.name.toLowerCase() === mine ? "me" : "" },
     el("td", { className: "medal", textContent: ["🥇", "🥈", "🥉"][i] || i + 1 }), el("td", { textContent: r.name }),
-    el("td", { className: "num", textContent: r.points }), el("td", { className: "num", textContent: r.match_wins }),
-    el("td", { className: "num", textContent: r.round_wins }), el("td", { className: "num", textContent: r.matches }))));
+    ...[r.points, r.avg, r.match_wins, r.round_wins, r.kills || 0, r.matches].map((v) => el("td", { className: "num", textContent: v })))));
 }
 
 function renderRooms() {
@@ -545,8 +558,10 @@ function avatar(skinKey, size = 28) {
 function buildLegend() {
   if (buildLegend.done) return;
   buildLegend.done = true;
-  $("legendList").replaceChildren(...Object.entries(ITEMS).map(([, [col, icon, name, desc]]) =>
-    el("li", {}, el("span", { className: "lg-ic", style: `background:${col}`, textContent: icon }),
+  $("legendList").replaceChildren(...Object.entries(ITEMS).map(([key, [col, icon, name, desc]]) =>
+    el("li", {}, A.items[key]
+      ? el("img", { className: "lg-img" + (A.pixelArt ? " px" : ""), src: A.items[key].src, alt: name, width: 32, height: 32 })
+      : el("span", { className: "lg-ic", style: `background:${col}`, textContent: icon }),
       el("span", {}, el("b", { textContent: name }), " — " + desc))));
 }
 
@@ -572,6 +587,7 @@ function updateUI() {
 
   // sobreposição
   $("overlay").classList.toggle("hidden", S.phase === "playing");
+  $("overlay").classList.toggle("clear", S.phase === "countdown"); // no início da rodada o mapa fica visível
   $("lobbyBox").classList.toggle("hidden", !lobby);
   $("finalTable").classList.toggle("hidden", S.phase !== "final");
   $("readyBtn").classList.toggle("hidden", !me);
@@ -579,6 +595,13 @@ function updateUI() {
   $("addBotBtn").disabled = S.players.length >= 6;
   $("rmBotBtn").disabled = !S.players.some((p) => p.bot);
   $("readyBtn").textContent = me && me.ready ? "Cancelar" : "Pronto!";
+  const fin = S.phase === "final";
+  $("finalRow").classList.toggle("hidden", !(fin && me));
+  if (fin) {
+    const ppl = S.players.filter((p) => p.connected);
+    $("rematchBtn").textContent = me && me.ready ? "Cancelar" : "Pronto para nova partida";
+    $("finalStatus").textContent = `${ppl.filter((p) => p.ready).length} de ${ppl.length} prontos. A nova partida começa quando todos estiverem prontos.`;
+  }
   $("roomTitle").textContent = S.room;
 
   let msg = "";
@@ -859,6 +882,26 @@ function drawPlayers(players, dt, now) {
   }
 }
 
+// foco no seu personagem só no começo da rodada (contagem + primeiro segundo)
+function drawFocus(now) {
+  const early = S.phase === "countdown" && !S.intro && S.countdown <= 2; // só os últimos 2 s da contagem
+  const me = S.players.find((p) => p.id === myId);
+  const v = vis[myId];
+  if (!early || !me || !me.alive || !v) return;
+  const cx = v.x * TILE, cy = v.y * TILE, pulse = 0.5 + 0.5 * Math.sin(now / 160);
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.5)"; // escurece o resto do campo, deixando uma clareira em volta de você
+  ctx.beginPath(); ctx.rect(0, 0, W * TILE, H * TILE); ctx.arc(cx, cy, TILE * 1.7, 0, 7, true); ctx.fill("evenodd");
+  ctx.strokeStyle = "#f5b82e"; ctx.lineWidth = 4; ctx.shadowColor = "#f5b82e"; ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.arc(cx, cy, TILE * (0.78 + 0.1 * pulse), 0, 7); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.fillStyle = "#f5b82e"; ctx.strokeStyle = "#3b1f0c"; ctx.lineWidth = 3;
+  const ay = cy - TILE * (1.05 + 0.12 * pulse);
+  ctx.beginPath(); ctx.moveTo(cx, ay + 12); ctx.lineTo(cx - 10, ay - 4); ctx.lineTo(cx + 10, ay - 4); ctx.closePath(); ctx.stroke(); ctx.fill();
+  ctx.font = "bold 14px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+  ctx.strokeText("Você", cx, ay - 6); ctx.fillStyle = "#fff"; ctx.fillText("Você", cx, ay - 6);
+  ctx.restore();
+}
+
 let prev = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, (now - prev) / 1000);
@@ -874,6 +917,7 @@ function frame(now) {
     drawWarns(S.warn || [], now);
     drawBombs(S.bombs, now);
     drawPlayers(S.players, dt, now);
+    drawFocus(now);
   }
   requestAnimationFrame(frame);
 }
@@ -889,9 +933,6 @@ function init() {
   renderHistory();
   sizeCanvas();
 
-  $("btnRank").onclick = () => $("rankModal").classList.remove("hidden");
-  $("rankClose").onclick = () => $("rankModal").classList.add("hidden");
-  $("rankModal").onclick = (e) => { if (e.target === $("rankModal")) $("rankModal").classList.add("hidden"); };
   $("btnSkin").onclick = () => { buildSkinGrid(); show("skin"); };
   $("upFile").onchange = async () => {
     const f = $("upFile").files[0];
@@ -943,11 +984,19 @@ function init() {
   $("playerName").onkeydown = (e) => { if (e.key === "Enter") $("btnMulti").click(); };
   $("addBotBtn").onclick = () => send({ t: "addbot" });
   $("rmBotBtn").onclick = () => send({ t: "rmbot" });
-  $("readyBtn").onclick = () => {
+  $("chatForm").onsubmit = (e) => {
+    e.preventDefault();
+    const inp = $("chatInput"), text = inp.value.trim();
+    if (text) send({ t: "chat", text });
+    inp.value = "";
+  };
+  $("chatInput").onfocus = () => { held.length = 0; sendDir(); }; // largar as setas ao começar a digitar
+  $("chatInput").onkeydown = (e) => { if (e.key === "Escape") e.target.blur(); };
+  $("rematchBtn").onclick = $("readyBtn").onclick = () => {
     const me = S && S.players.find((p) => p.id === myId);
     if (me) send({ t: "ready", v: !me.ready });
   };
-  $("leaveBtn").onclick = $("leaveBtn2").onclick = () => send({ t: "leave" });
+  $("leaveBtn").onclick = $("leaveBtn2").onclick = $("finalLeaveBtn").onclick = () => send({ t: "leave" });
   show("title");
 }
 

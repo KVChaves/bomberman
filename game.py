@@ -34,7 +34,8 @@ MAX_LIVES = 3
 SD_DELAY, SD_INTERVAL = 1.0, 0.2  # morte súbita
 PASS_COOLDOWN = 1.5  # depois de receber a caveira, não dá para devolvê-la logo
 
-COUNTDOWN, ROUND_OVER_TIME, FINAL_TIME = 3, 4, 10
+COUNTDOWN, ROUND_OVER_TIME, FINAL_TIME = 3, 4, 60  # no fim da partida, 60 s para todos darem pronto antes de voltar ao lobby
+MIN_RANKED_HUMANS = 3  # só rodadas e partidas com pelo menos 3 humanos valem para o ranking
 INTRO_TIME = 2.0  # título da rodada antes da contagem
 
 DIRS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -64,6 +65,10 @@ class Player:
         self.match_win = False
         self.wins = 0
         self.points = 0
+        self.ip = ""
+        self.spawn = -1  # ponto de partida da rodada anterior
+        self.rank_points = self.rank_wins = 0  # só rodadas com 2+ humanos (valem para o ranking)
+        self.kills = 0  # eliminações: jogadores derrubados pelas suas bombas
         self.bot_t = 0
         self.bot_cd = 0.0
         self.reset()
@@ -85,6 +90,7 @@ class Player:
         self.warp_armed = True  # portal só teleporta de novo depois que você sai dele
         self.want_bomb = self.want_det = False
         self.ice_dir = (0, 0)
+        self.died_tick = 0
 
     def abilities(self):
         return [k for k in ("remote", "bomb_pass", "wall_pass", "kick", "glove", "punch", "line_bomb")
@@ -148,6 +154,7 @@ class Room:
         self.custom_skins = custom_skins  # ids das skins enviadas pelos jogadores (texto); as do tema são números
         self.players = {}
         self.banned = set()  # nomes expulsos pelo gerente
+        self.chat = []  # últimas mensagens do chat da sala
         self.next_pid = 1
         self.host = None
         self.map, self.rounds, self.round_time = "rotate", 3, 120
@@ -160,6 +167,7 @@ class Room:
         self._danger = (-1, {})
         self.round_no = 0
         self.round_humans = 0
+        self.rank_round = False
         self.final = []
         self.to_lobby()
 
@@ -211,6 +219,7 @@ class Room:
             n += 1
         p = Player(self.next_pid, name, self._free_skin(skin, nskins), client, bot)
         p.nskins = self._nskins(nskins)
+        p.ip = getattr(client, "ip", "")
         self.next_pid += 1
         self.players[p.id] = p
         if self.host is None and not bot:
@@ -261,7 +270,7 @@ class Room:
             if any(q.skin == skin for q in self.connected() if q is not p):
                 return "Essa skin já está em uso por outro jogador."
             p.skin = skin
-        elif t == "ready" and self.phase == "lobby":
+        elif t == "ready" and self.phase in ("lobby", "final"):
             p.ready = bool(m.get("v"))
         elif t == "settings" and self.phase == "lobby" and p.id == self.host:
             self.apply_settings(m)
@@ -305,6 +314,7 @@ class Room:
         self.h, self.w = len(self.grid), len(self.grid[0])
         self.bombs, self.bomb_at = [], {}
         self.flames, self.items = {}, {}
+        self.flame_owner = {}  # casa em chamas -> dono da bomba (para contar eliminações)
         self.winner = None
         self.time_left = float(self.round_time)
         self.sudden = False
@@ -320,12 +330,26 @@ class Room:
             p.reset()
             p.ready = p.bot
             p.waiting = p.in_round = False
-            p.wins = p.points = p.played = 0
+            p.wins = p.points = p.played = p.kills = p.rank_points = p.rank_wins = 0
         self.phase = "lobby"
         self.timer = 0.0
         self.round_no = 0
         self.map_queue = []
         self.preview()
+
+    def new_match(self):
+        """Nova partida com os mesmos jogadores e configurações (mapa, rodadas, tempo, opções)."""
+        for pid in [i for i, p in self.players.items() if not p.connected]:
+            del self.players[pid]
+        for p in self.players.values():
+            p.wins = p.points = p.played = p.kills = p.rank_points = p.rank_wins = 0
+            p.match_win = False
+        self.round_no = 0
+        self.map_queue = []
+        self.final = []
+        self.start_round()
+        for p in self.players.values():
+            p.ready = p.bot
 
     def _next_map(self):
         """Mapa da rodada: o escolhido, ou (modo "rotate") um mapa diferente a cada rodada."""
@@ -350,24 +374,47 @@ class Room:
         else:
             self.finish_match()
 
+    def _spawn_order(self, n):
+        """Ponto de partida de cada jogador, sorteado a cada rodada. Os pontos vêm em pares de cantos opostos
+        (2 jogadores nunca começam colados) e ninguém repete o ponto da rodada anterior, se der."""
+        players = [p for p in sorted(self.players.values(), key=lambda p: p.id) if p.connected]
+        best = None
+        for _ in range(30):
+            pairs = [[0, 1], [2, 3], [4, 5]]
+            random.shuffle(pairs)
+            for pr in pairs:
+                random.shuffle(pr)
+            order = [s for pr in pairs for s in pr][:max(n, 1)]
+            repeats = sum(1 for p, s in zip(players, order) if p.spawn == s)
+            if best is None or repeats < best[0]:
+                best = (repeats, order)
+            if repeats == 0:
+                break
+        return best[1] + [0] * max(0, n - len(best[1]))
+
     def start_round(self, only=None):
         self.round_no += 1
         self.cur_map = self._next_map()
         self._new_arena()
         spawns = spawn_points(self.w, self.h)
+        order = self._spawn_order(sum(1 for p in self.players.values() if p.connected and (only is None or p.id in only)))
         i = 0
         for p in sorted(self.players.values(), key=lambda p: p.id):
+            last = p.spawn
             p.reset()
             p.waiting = False
             p.in_round = p.connected and (only is None or p.id in only)
             if p.in_round:
-                p.x, p.y = spawns[i][0] + 0.5, spawns[i][1] + 0.5
+                p.spawn = order[i]
+                p.x, p.y = spawns[p.spawn][0] + 0.5, spawns[p.spawn][1] + 0.5
                 p.played += 1
                 i += 1
             else:
                 p.alive = False
+                p.spawn = last
         if only is None:
             self.round_humans = len([p for p in self.humans() if p.in_round])
+        self.rank_round = not self.single and self.round_humans >= MIN_RANKED_HUMANS
         self.phase = "countdown"
         self.timer = COUNTDOWN + INTRO_TIME
 
@@ -380,9 +427,19 @@ class Room:
         if w:
             w.wins += 1
             w.points += WIN_POINTS
+            if self.rank_round and not w.bot:
+                w.rank_points += WIN_POINTS
+                w.rank_wins += 1
         else:
-            for p in alive:  # empate: 1 ponto para cada último sobrevivente
+            # empate: 1 ponto para cada um dos últimos a morrer (quem sobrou, ou quem caiu junto no fim)
+            last = alive or [p for p in self.players.values() if p.in_round and p.died_tick]
+            if not alive and last:
+                top = max(p.died_tick for p in last)
+                last = [p for p in last if p.died_tick == top]
+            for p in last:
                 p.points += DRAW_POINTS
+                if self.rank_round and not p.bot:
+                    p.rank_points += DRAW_POINTS
 
     def finish_match(self):
         ps = sorted(self.connected(), key=lambda p: (-p.points, p.name))
@@ -392,9 +449,11 @@ class Room:
         self.final = [{"id": p.id, "name": p.name, "skin": p.skin,
                        "points": p.points, "winner": p.match_win, "bot": p.bot} for p in ps]
         humans = [p for p in self.players.values() if not p.bot and p.played]  # inclui quem saiu no meio
-        if not self.single and len(humans) >= 2:
-            self.history.record([{"name": p.name, "points": p.points, "round_wins": p.wins,
-                                  "match_win": p.match_win} for p in humans])
+        if not self.single and len(humans) >= MIN_RANKED_HUMANS:
+            self.history.record([{"name": p.name, "points": p.rank_points, "round_wins": p.rank_wins, "ip": p.ip,
+                                  "kills": p.kills, "match_win": p.match_win and p.rank_points > 0} for p in humans])
+        for p in self.players.values():
+            p.ready = p.bot  # cada pessoa precisa dar "pronto" para a nova partida
         self.phase = "final"
         self.timer = FINAL_TIME
 
@@ -417,7 +476,10 @@ class Room:
                     self.next_round_or_finish()
         elif self.phase == "final":
             self.timer -= TICK
-            if self.timer <= 0:
+            ps = self.connected()
+            if len(ps) >= 2 and all(p.ready for p in ps):
+                self.new_match()
+            elif self.timer <= 0:
                 self.to_lobby()
 
     # ---------- mundo ----------
@@ -468,12 +530,13 @@ class Room:
             self.detonate(due)
         for cell in [c for c, exp in self.flames.items() if exp <= self.now]:
             del self.flames[cell]
+            self.flame_owner.pop(cell, None)
 
         if not playing:
             return
         for p in self.players.values():
-            if p.alive and (int(p.x), int(p.y)) in self.flames:
-                self.hit(p)
+            if p.in_round and not p.alive and not p.died_tick:
+                p.died_tick = self.tick_n
         alive = [p for p in self.players.values() if p.alive]
         parts = [p for p in self.players.values() if p.in_round]
         if (len(parts) > 1 and len(alive) <= 1) or not alive:
@@ -557,6 +620,16 @@ class Room:
                     p.curse = ""
                     break
 
+    def burn(self, cells):
+        """O fogo só machuca no instante da explosão: quem está nessas casas agora leva o dano."""
+        for p in self.players.values():
+            cell = (int(p.x), int(p.y))
+            if p.alive and cell in cells:
+                self.hit(p)
+                killer = self.players.get(self.flame_owner.get(cell))
+                if self.rank_round and not p.alive and not p.bot and killer is not None and killer is not p:
+                    killer.kills += 1
+
     def hit(self, p):
         if p.invuln_t > 0:
             return
@@ -624,7 +697,9 @@ class Room:
                 if self.grid[y][x] == BLOCK:
                     self.grid[y][x] = EMPTY
                 self.items.pop((x, y), None)
+                self.flame_owner.pop((x, y), None)
                 self.flames[(x, y)] = self.now + FLAME_TIME
+                self.burn({(x, y)})
             else:  # rocha: machuca quem está embaixo; vira bloco se a casa estiver livre
                 under = [p for p in self.players.values() if p.alive and (int(p.x), int(p.y)) == (x, y)]
                 for p in under:
@@ -840,7 +915,7 @@ class Room:
 
     def detonate(self, first):
         queue = list(first)
-        cells, destroyed = set(), set()
+        cells, destroyed, owners = set(), set(), {}
         while queue:
             b = queue.pop()
             if b.done:
@@ -848,6 +923,7 @@ class Room:
             b.done = True
             c, bl, hit = self.blast(*self.origin(b), b.range)
             cells.update(c)
+            owners.update((cc, b.owner) for cc in c)
             destroyed.update(bl)
             queue.extend(o for o in hit if not o.done)
         for b in self.bombs:
@@ -856,7 +932,9 @@ class Room:
         self.bombs = [b for b in self.bombs if not b.done]
         for c in cells:
             self.flames[c] = self.now + FLAME_TIME
+            self.flame_owner[c] = owners[c]
             self.items.pop(c, None)
+        self.burn(cells)
         for x, y in destroyed:
             self.grid[y][x] = EMPTY
             if random.random() < ITEM_CHANCE:

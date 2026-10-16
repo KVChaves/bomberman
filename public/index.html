@@ -19,23 +19,20 @@
         <button id="btnSingle"><span class="ico">🤖</span>Singleplayer</button>
         <button id="btnMulti"><span class="ico">🌐</span>Multiplayer</button>
         <button id="btnSkin" class="ghost"><span class="ico">🎨</span>Mudar skin <canvas id="skinMini" width="28" height="28"></canvas></button>
-        <button id="btnRank" class="ghost"><span class="ico">🏆</span>Ranking</button>
       </nav>
     </div>
     <h1 class="logo"><span>CTI</span> BOMBERS</h1>
     <p class="tagline">Explosões entre amigos</p>
 
-    <div id="rankModal" class="modal hidden">
-      <div class="panel">
-        <h2>🏆 Ranking geral</h2>
+    <aside id="rankPanel" class="panel">
+      <h2>🏆 Ranking geral</h2>
+      <div class="rank-scroll">
         <table id="historyTable">
-          <thead><tr><th>#</th><th>Jogador</th><th class="num" title="Pontos">Pts</th><th class="num" title="Partidas vencidas">Vit.</th><th class="num" title="Rodadas vencidas">Rod.</th><th class="num" title="Partidas jogadas">Jogos</th></tr></thead>
+          <thead><tr><th>#</th><th>Jogador</th><th class="num" title="Pontos totais">Pts</th><th class="num" title="Média de pontos por jogo">Média</th><th class="num" title="Partidas vencidas">Vit.</th><th class="num" title="Rodadas vencidas">Rod.</th><th class="num" title="Jogadores eliminados com as suas bombas">Elim.</th><th class="num" title="Partidas jogadas">Jogos</th></tr></thead>
           <tbody></tbody>
         </table>
-        <p class="note">Pontos só valem em partidas multiplayer com 3 ou mais jogadores: cada rodada vencida dá (jogadores − 2) pontos e quem vence a partida ganha o dobro disso.</p>
-        <div class="row" style="margin-top:12px"><button id="rankClose">Fechar</button></div>
       </div>
-    </div>
+    </aside>
   </section>
 
   <!-- ===== Escolher skin ===== -->
@@ -79,29 +76,42 @@
   <!-- ===== Sala / partida ===== -->
   <section id="screen-game" class="screen hidden">
     <main>
-      <div id="stage">
-        <canvas id="game"></canvas>
-        <div id="banner" class="hidden"></div>
-        <div id="curseMsg" class="hidden"></div>
-        <div id="shieldTimer" class="hidden"></div>
-        <div id="overlay">
-          <div id="roundTitle" class="hidden"></div>
-          <div id="msg"></div>
-          <div id="lobbyBox" class="panel">
-            <div id="roomTitle"></div>
-            <div id="roomSettings" class="form"></div>
-            <ul id="lobbyList"></ul>
-            <div class="row hidden" id="botRow"><button id="addBotBtn" class="ghost">+ Bot</button><button id="rmBotBtn" class="ghost">− Bot</button></div>
-            <div class="row"><button id="readyBtn">Pronto!</button><button id="skinBtn" class="ghost">Trocar skin</button><button id="leaveBtn" class="ghost">Sair</button></div>
+      <div id="playCol">
+        <div id="stage">
+          <canvas id="game"></canvas>
+          <div id="banner" class="hidden"></div>
+          <div id="curseMsg" class="hidden"></div>
+          <div id="shieldTimer" class="hidden"></div>
+          <div id="overlay">
+            <div id="roundTitle" class="hidden"></div>
+            <div id="msg"></div>
+            <div id="lobbyBox" class="panel">
+              <div id="roomTitle"></div>
+              <div id="roomSettings" class="form"></div>
+              <ul id="lobbyList"></ul>
+              <div class="row hidden" id="botRow"><button id="addBotBtn" class="ghost">+ Bot</button><button id="rmBotBtn" class="ghost">− Bot</button></div>
+              <div class="row"><button id="readyBtn">Pronto!</button><button id="skinBtn" class="ghost">Trocar skin</button><button id="leaveBtn" class="ghost">Sair</button></div>
+            </div>
+            <table id="finalTable" class="hidden"></table>
+            <div id="finalRow" class="hidden">
+              <div id="finalStatus"></div>
+              <div class="row"><button id="rematchBtn">Pronto para nova partida</button><button id="finalLeaveBtn" class="ghost">Sair</button></div>
+            </div>
           </div>
-          <table id="finalTable" class="hidden"></table>
         </div>
+        <section id="chat" aria-label="Chat da sala">
+          <ul id="chatLog"></ul>
+          <form id="chatForm" autocomplete="off">
+            <input id="chatInput" maxlength="200" placeholder="Escreva uma mensagem (Enter para falar)" aria-label="Mensagem">
+            <button type="submit">Enviar</button>
+          </form>
+        </section>
       </div>
       <aside id="hud">
         <div id="roundInfo"></div>
         <table id="scoreTable"></table>
         <div id="myPowers"></div>
-        <div id="legend"><h3>Poderes</h3><ul id="legendList"></ul></div>
+        <details id="legend" open><summary>O que cada poder faz</summary><ul id="legendList"></ul></details>
         <button id="leaveBtn2" class="ghost">Sair da sala</button>
       </aside>
     </main>

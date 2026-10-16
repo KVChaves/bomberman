@@ -11,6 +11,7 @@ import re
 import secrets
 import socket
 import struct
+import sys
 import time
 
 from game import MAX_PLAYERS, TICK, Room
@@ -40,12 +41,23 @@ class History:
             self.data = {}
 
     def record(self, entries):
+        """Soma por IP (quem usa vários nomes conta como uma pessoa); o nome visível é o último usado."""
+        merged = {}
         for e in entries:
-            d = self.data.setdefault(e["name"].lower(), {"name": e["name"], "points": 0, "round_wins": 0,
-                                                         "matches": 0, "match_wins": 0})
+            key = e.get("ip") or e["name"].lower()
+            m = merged.setdefault(key, {"name": e["name"], "points": 0, "round_wins": 0, "kills": 0, "match_win": False})
+            m["name"] = e["name"]
+            m["points"] += e["points"]
+            m["round_wins"] += e["round_wins"]
+            m["kills"] += e.get("kills", 0)
+            m["match_win"] = m["match_win"] or e["match_win"]
+        for key, e in merged.items():
+            d = self.data.setdefault(key, {"name": e["name"], "points": 0, "round_wins": 0,
+                                           "matches": 0, "match_wins": 0, "kills": 0})
             d["name"] = e["name"]
             d["points"] += e["points"]
             d["round_wins"] += e["round_wins"]
+            d["kills"] = d.get("kills", 0) + e["kills"]
             d["matches"] += 1
             d["match_wins"] += 1 if e["match_win"] else 0
         self.version += 1
@@ -58,7 +70,9 @@ class History:
             print("Aviso: não consegui salvar o histórico:", e)
 
     def table(self, n=20):
-        rows = sorted(self.data.values(), key=lambda d: (-d["points"], -d["match_wins"], -d["round_wins"], d["name"]))
+        rows = sorted(({k: v for k, v in d.items() if k != "ip"} for d in self.data.values()), key=lambda d: (-d["points"], -d["match_wins"], -d["round_wins"], d["name"]))
+        for d in rows:
+            d["avg"] = round(d["points"] / d["matches"], 1) if d["matches"] else 0
         return rows[:n]
 
 
@@ -203,6 +217,7 @@ class Client:
         self.room = None
         self.player = None
         self.closed = False
+        self.ip = ""
 
     def send_raw(self, frame):
         if self.closed:
@@ -250,6 +265,8 @@ class Hub:
                 self.leave(c)
             elif t == "kick":
                 self.kick(c, self._int(m.get("id"), -1))
+            elif t == "chat":
+                self.chat(c, m.get("text"))
             else:
                 err = c.room.on_message(c.player, m)
                 if err:
@@ -259,6 +276,26 @@ class Hub:
             self.send_menu(c)
         elif t in ("create", "join"):
             self.enter(c, m, t == "create")
+
+    CHAT_MAX, CHAT_KEEP, CHAT_GAP = 200, 40, 0.7
+
+    def chat(self, c, text):
+        """Chat da sala: texto simples, limitado e com intervalo mínimo entre mensagens."""
+        room, p = c.room, c.player
+        if not isinstance(text, str) or p is None:
+            return
+        text = " ".join(text.split())[:self.CHAT_MAX]
+        now = time.monotonic()
+        if not text or now - getattr(c, "last_chat", 0.0) < self.CHAT_GAP:
+            return
+        c.last_chat = now
+        msg = {"t": "chat", "name": p.name, "skin": p.skin, "text": text}
+        room.chat.append(msg)
+        del room.chat[:-self.CHAT_KEEP]
+        frame = enc(msg)
+        for q in room.players.values():
+            if q.client and q.connected:
+                q.client.send_raw(frame)
 
     def custom_skin(self, c, m, add):
         if add:
@@ -315,6 +352,8 @@ class Hub:
                     room.add_bot()
         c.room, c.player = room, p
         c.send({"t": "you", "id": p.id})
+        for old in room.chat:
+            c.send(old)
 
     def leave(self, c):
         room, p = c.room, c.player
@@ -376,6 +415,10 @@ async def ws_session(reader, writer, headers):
                   f"Connection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n").encode())
     await writer.drain()
     c = Client(writer)
+    # atrás de proxy (hospedagem) o IP real vem em X-Forwarded-For; senão é o endereço da conexão
+    fwd = headers.get("x-forwarded-for", "").split(",")[0].strip()
+    peer = writer.get_extra_info("peername")
+    c.ip = fwd or (peer[0] if peer else "")
     hub.clients.add(c)
     c.send(hub.hello())
     hub.send_menu(c)
@@ -453,7 +496,18 @@ async def handle(reader, writer):
             pass
 
 
+def fine_timer():
+    """No Windows o relógio padrão tem passos de ~15 ms: o laço do jogo oscilava e o movimento ficava travado."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.winmm.timeBeginPeriod(1)
+        except Exception:
+            pass
+
+
 async def game_loop():
+    fine_timer()
     nxt = time.perf_counter()
     n = 0
     while True:
@@ -463,10 +517,14 @@ async def game_loop():
             hub.menu_broadcast()
         nxt += TICK
         delay = nxt - time.perf_counter()
-        if delay > 0:
-            await asyncio.sleep(delay)
+        if delay > 0.002:
+            await asyncio.sleep(delay - 0.002)  # dorme quase tudo e cede o resto, para não passar do ponto
+            while time.perf_counter() < nxt:
+                await asyncio.sleep(0)
+        elif delay < -0.25:
+            nxt = time.perf_counter()  # atrasou demais: recomeça em vez de acelerar o jogo
         else:
-            nxt = time.perf_counter()
+            await asyncio.sleep(0)  # um pouco atrasado: recupera no próximo tick, mantendo 30 ticks/s
 
 
 def lan_ips():

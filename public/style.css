@@ -107,7 +107,7 @@ button.kick:active { transform: translateY(1px); box-shadow: 0 1px 0 #5a160b; }
 /* janela do ranking */
 .modal { position: fixed; inset: 0; z-index: 30; background: rgba(8,4,1,.72); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
 .modal:not(.hidden) .panel { animation: rise .25s ease-out; }
-.modal .panel { width: 100%; max-width: 580px; max-height: 90vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.modal .panel { width: 100%; max-width: 720px; max-height: 90vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
 
 /* ---------- tabelas ---------- */
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
@@ -250,3 +250,93 @@ canvas#game {
 #legendList { list-style: none; margin: 0; padding: 0; max-height: 230px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #8a5a2e transparent; display: flex; flex-direction: column; gap: 5px; }
 #legendList li { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.3; }
 #legendList .lg-ic { flex: none; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 13px; }
+
+/* ===== refinamento visual ===== */
+.form label, th { text-transform: none; letter-spacing: .2px; }
+.form label { font-size: 13px; }
+th { font-size: 12px; }
+
+/* placa de madeira pregada: rodada e tempo */
+#roundInfo { position: relative; height: 56px; padding: 0 30px; border-radius: 6px;
+  background: linear-gradient(#5d3b21, #3b2412); border-color: #1a0f08;
+  box-shadow: inset 0 0 0 3px rgba(245,184,46,.22), inset 0 2px 0 rgba(255,225,170,.16), 0 8px 20px rgba(0,0,0,.45); }
+#roundInfo::before, #roundInfo::after { content: ""; position: absolute; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #efe0bd, #7a6642 70%); box-shadow: 0 1px 0 rgba(0,0,0,.6); }
+#roundInfo::before { left: 10px; }
+#roundInfo::after { right: 10px; }
+#roundInfo span:first-child { font-size: 16px; }
+
+/* título da rodada: a placa bate no campo antes da contagem */
+#roundTitle { padding: 8px 34px; border-radius: 6px; font-size: 26px; letter-spacing: 3px; color: var(--parchment); margin-bottom: 6px;
+  background: linear-gradient(#6b4527, #43281a); border: 3px solid #1a0f08; transform-origin: 50% 0;
+  box-shadow: inset 0 0 0 3px rgba(245,184,46,.35), 0 12px 24px rgba(0,0,0,.6); }
+#roundTitle.big { font-size: clamp(26px, 5vw, 46px); padding: 14px 44px; animation: slam .6s cubic-bezier(.2,.9,.3,1.15) both; }
+@keyframes slam { from { transform: translateY(-80px) rotate(-5deg); opacity: 0; } 55% { opacity: 1; transform: translateY(0) rotate(1.8deg); } to { transform: none; opacity: 1; } }
+
+/* placar */
+#scoreTable thead th { background: rgba(0,0,0,.22); }
+#scoreTable td { border-top-color: rgba(255,220,160,.07); }
+
+/* legenda dos poderes: recolhível, aberta por padrão */
+#legend { padding: 0; overflow: hidden; background: linear-gradient(180deg, var(--wood2), var(--wood)); border: 2px solid #1a0f08; border-radius: 14px;
+  box-shadow: inset 0 0 0 2px rgba(245,184,46,.12), 0 8px 20px rgba(0,0,0,.4); }
+#legend summary { cursor: pointer; list-style: none; padding: 10px 14px; font-family: var(--display); font-size: 15px; letter-spacing: 1px; color: var(--gold);
+  display: flex; justify-content: space-between; align-items: center; user-select: none; }
+#legend summary::-webkit-details-marker { display: none; }
+#legend summary::after { content: "▾"; transition: transform .15s; }
+#legend:not([open]) summary::after { transform: rotate(-90deg); }
+#legend summary:focus-visible { outline: 3px solid rgba(255,248,220,.85); outline-offset: -3px; }
+#legendList { padding: 0 12px 12px; max-height: 260px; gap: 0; }
+#legendList li { padding: 6px 0; font-size: 13px; line-height: 1.35; border-top: 1px solid rgba(255,220,160,.09); }
+#legendList li b { color: var(--parchment); }
+#legendList li > span:last-child { color: var(--dim); }
+#legendList .lg-ic { width: 26px; height: 26px; font-size: 15px; border: 1px solid rgba(0,0,0,.4); box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+
+/* sala */
+#roomSettings { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+#roomTitle { padding-bottom: 8px; border-bottom: 2px solid rgba(245,184,46,.3); width: 100%; }
+#lobbyList li { padding: 6px 12px; }
+
+/* aviso: tom neutro (também mostra eventos, não só erros) */
+#toast::before { content: "✦ "; color: var(--gold); }
+
+.menu button:focus-visible { outline: 3px solid rgba(255,248,220,.9); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+#legend summary::after { font-size: 18px; line-height: 1; color: var(--gold); }
+#myPowers { min-height: 60px; }
+#legendList .lg-img { flex: none; width: 32px; height: 32px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
+#legendList .lg-img.px { image-rendering: pixelated; }
+#finalRow { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+#finalStatus { font-size: 14px; color: var(--dim); max-width: 460px; }
+#overlay.clear { background: none; backdrop-filter: none; justify-content: flex-start; padding-top: 22px; pointer-events: none; }
+
+/* ranking sempre visível na tela inicial */
+#rankPanel { position: absolute !important; top: 16px; left: 246px; width: min(460px, calc(100vw - 262px)); max-height: min(310px, calc(100vh - 32px)); z-index: 2; display: flex; flex-direction: column; padding: 12px 16px; background: linear-gradient(180deg, rgba(74,47,27,.94), rgba(53,33,15,.94)); }
+#rankPanel h2 { margin-bottom: 6px; }
+#rankPanel .note { margin-top: 8px; font-size: 11px; }
+#rankPanel .rank-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #8a5a2e transparent; }
+#rankPanel th, #rankPanel td { padding: 6px 7px; white-space: nowrap; }
+#rankPanel td:nth-child(2) { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) {
+  #rankPanel { position: relative !important; top: auto; left: auto; width: min(460px, 94vw); max-height: 50vh; }
+}
+#rankPanel table { font-size: 12px; }
+#rankPanel th { font-size: 11px; }
+#rankPanel td { padding: 4px 7px; }
+#rankPanel td.medal { font-size: 14px; }
+#rankPanel h2 { font-size: 17px; }
+
+/* coluna do jogo: mapa + chat embaixo */
+#playCol { display: flex; flex-direction: column; gap: 12px; max-width: 100%; align-items: stretch; }
+#chat { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: linear-gradient(180deg, var(--wood2), var(--wood)); border: 2px solid #1a0f08; border-radius: 12px;
+  box-shadow: inset 0 0 0 2px rgba(245,184,46,.12), 0 8px 20px rgba(0,0,0,.4); line-height: 1.35; }
+#chatLog { list-style: none; margin: 0; padding: 0; height: 110px; overflow-y: auto; font-size: 14px; display: flex; flex-direction: column; gap: 3px; scrollbar-width: thin; scrollbar-color: #8a5a2e transparent; }
+#chatLog li { overflow-wrap: anywhere; }
+#chatLog li span { color: var(--parchment); }
+#chatForm { display: flex; gap: 8px; }
+#chatForm input { flex: 1; min-width: 0; padding: 8px 12px; font-size: 14px; }
+#chatForm button { padding: 6px 16px; font-size: 14px; }
+#curseMsg { top: auto; bottom: 14px; }
