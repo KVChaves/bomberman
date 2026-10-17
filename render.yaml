@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cti-bombers
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: SUPABASE_URL   # ex.: https://xxxx.supabase.co
+        sync: false
+      - key: SUPABASE_KEY   # chave service_role (Project Settings → API)
+        sync: false

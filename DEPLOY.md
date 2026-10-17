@@ -39,6 +39,15 @@ Deploy from repo*. Os três definem a variável `PORT` sozinhos; o servidor já 
 >
 > Rode **uma única instância** do servidor: as salas ficam na memória do processo.
 
+### Ranking e skins no Supabase (sem disco persistente)
+
+1. Crie um projeto no Supabase e rode o conteúdo de [supabase.sql](supabase.sql) no *SQL Editor*.
+2. Em *Project Settings → API* copie a *Project URL* e a chave **service_role**.
+3. No Render defina `SUPABASE_URL` e `SUPABASE_KEY` com esses valores.
+
+Ao iniciar, o log não mostra erro e o ranking passa a sobreviver a reinícios. As skins ficam no banco (limite de
+200 de até 512 KB, cerca de 100 MB no máximo; o plano grátis do Supabase tem 500 MB).
+
 ## Passo 2 — Publicar o site na Vercel
 
 1. Edite [public/config.js](public/config.js):
@@ -75,6 +84,8 @@ Assim só o seu site consegue abrir conexão (outros sites recebem 403). Vários
 | `PORT` | porta (as hospedagens definem sozinhas) | `8000` |
 | `HOST` | interface onde escuta | `0.0.0.0` |
 | `ALLOWED_ORIGINS` | sites autorizados a conectar, separados por vírgula | vazio = qualquer um |
+| `SUPABASE_URL` | endereço do projeto Supabase; com `SUPABASE_KEY`, ranking e skins são salvos lá em vez de em arquivos | vazio = arquivos |
+| `SUPABASE_KEY` | chave **service_role** do Supabase (secreta: só no servidor, nunca no `config.js`) | vazio |
 | `HISTORY_FILE` | onde salvar o ranking geral | `data/history.json` |
 | `SKINS_DIR` | pasta das skins enviadas pelos jogadores | `data/skins` |
 

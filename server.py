@@ -12,7 +12,10 @@ import secrets
 import socket
 import struct
 import sys
+import threading
 import time
+import urllib.parse
+import urllib.request
 
 from game import MAX_PLAYERS, TICK, Room
 from maps import MAPS
@@ -27,6 +30,67 @@ mimetypes.add_type("image/webp", ".webp")  # Pythons antigos não conhecem
 ALLOWED_ORIGINS = {o.strip().rstrip("/") for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()}
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
+# Supabase (opcional): guarda ranking e skins numa tabela `kv` (veja supabase.sql). Sem as duas variáveis, usa arquivos.
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()  # chave service_role (secreta, só no servidor)
+
+
+class Store:
+    """Chave-valor no Supabase via REST (só biblioteca padrão). Leituras bloqueiam; gravações vão para uma thread."""
+
+    def __init__(self, url, key):
+        self.url = url + "/rest/v1/kv"
+        self.headers = {"apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/json"}
+        self.pending = {}  # chave -> valor (None = apagar); só a gravação mais recente de cada chave é enviada
+        self.lock = threading.Lock()
+        self.wake = threading.Event()
+        threading.Thread(target=self._writer, daemon=True).start()
+
+    def _call(self, method, query="", body=None, extra=None):
+        req = urllib.request.Request(self.url + query, method=method, headers={**self.headers, **(extra or {})},
+                                     data=None if body is None else json.dumps(body).encode())
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read() or b"null")
+
+    def get(self, key):
+        try:
+            rows = self._call("GET", "?select=value&key=eq." + urllib.parse.quote(key, safe=""))
+            return rows[0]["value"] if rows else None
+        except (OSError, ValueError, KeyError) as e:
+            print("Aviso: não consegui ler do Supabase:", e)
+            return None
+
+    def put(self, key, value):
+        value = json.loads(json.dumps(value))  # cópia: o original continua mudando enquanto a thread grava
+        with self.lock:
+            self.pending[key] = value
+        self.wake.set()
+
+    def delete(self, key):
+        self.put(key, None)
+
+    def _writer(self):
+        while True:
+            self.wake.wait()
+            self.wake.clear()
+            with self.lock:
+                batch, self.pending = self.pending, {}
+            for key, value in batch.items():
+                for attempt in range(3):
+                    try:
+                        if value is None:
+                            self._call("DELETE", "?key=eq." + urllib.parse.quote(key, safe=""))
+                        else:
+                            self._call("POST", "?on_conflict=key", {"key": key, "value": value},
+                                       {"Prefer": "resolution=merge-duplicates,return=minimal"})
+                        break
+                    except (OSError, ValueError) as e:
+                        print("Aviso: não consegui gravar no Supabase:", e)
+                        time.sleep(2 * (attempt + 1))
+
+
+STORE = Store(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+
 
 class History:
     """Ranking geral por nome de jogador, salvo em data/history.json."""
@@ -34,6 +98,9 @@ class History:
     def __init__(self, path):
         self.path = path
         self.version = 0
+        if STORE:
+            self.data = STORE.get("history") or {}
+            return
         try:
             with open(path, encoding="utf-8") as f:
                 self.data = json.load(f)
@@ -61,6 +128,9 @@ class History:
             d["matches"] += 1
             d["match_wins"] += 1 if e["match_win"] else 0
         self.version += 1
+        if STORE:
+            STORE.put("history", self.data)
+            return
         try:
             os.makedirs(os.path.dirname(self.path), exist_ok=True)
             with open(self.path + ".tmp", "w", encoding="utf-8") as f:
@@ -76,6 +146,27 @@ class History:
         return rows[:n]
 
 
+IMAGE_CACHE = {}  # arquivo da skin -> bytes (modo Supabase)
+
+
+async def serve_skin_remote(writer, name):
+    data = IMAGE_CACHE.get(name)
+    if data is None and re.fullmatch(r"[\w-]+\.\w+", name):
+        raw = await asyncio.get_running_loop().run_in_executor(None, STORE.get, "skin:" + name)
+        data = base64.b64decode(raw) if raw else None
+        if data:
+            if len(IMAGE_CACHE) >= 64:
+                IMAGE_CACHE.pop(next(iter(IMAGE_CACHE)))
+            IMAGE_CACHE[name] = data
+    if data is None:
+        writer.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 3\r\nConnection: close\r\n\r\n404")
+    else:
+        ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        writer.write((f"HTTP/1.1 200 OK\r\nContent-Type: {ctype}\r\nContent-Length: {len(data)}\r\n"
+                      "Cache-Control: public, max-age=86400\r\nConnection: close\r\n\r\n").encode() + data)
+    await writer.drain()
+
+
 class Skins:
     """Skins enviadas pelos jogadores: as imagens ficam em data/skins/ e a lista em data/skins/skins.json.
 
@@ -89,6 +180,9 @@ class Skins:
     def __init__(self, folder):
         self.dir = folder
         self.index = os.path.join(folder, "skins.json")
+        if STORE:  # imagens ficam no Supabase (chave "skin:<arquivo>"); aqui só a lista
+            self.items = [s for s in (STORE.get("skins") or []) if isinstance(s, dict) and self.valid_file(s.get("file"))]
+            return
         try:
             with open(self.index, encoding="utf-8") as f:
                 items = json.load(f)
@@ -143,13 +237,17 @@ class Skins:
         sid = "c" + secrets.token_hex(4)
         skin = {"id": sid, "file": f"{sid}.{ext}", "name": str(m.get("name", "")).strip()[:16] or f"Skin de {owner}",
                 "owner": owner}
-        try:
-            os.makedirs(self.dir, exist_ok=True)
-            with open(os.path.join(self.dir, skin["file"]), "wb") as f:
-                f.write(data)
-        except OSError as e:
-            print("Aviso: não consegui salvar a skin:", e)
-            return None, "O servidor não conseguiu salvar a skin."
+        if STORE:
+            STORE.put("skin:" + skin["file"], base64.b64encode(data).decode())
+            IMAGE_CACHE[skin["file"]] = data
+        else:
+            try:
+                os.makedirs(self.dir, exist_ok=True)
+                with open(os.path.join(self.dir, skin["file"]), "wb") as f:
+                    f.write(data)
+            except OSError as e:
+                print("Aviso: não consegui salvar a skin:", e)
+                return None, "O servidor não conseguiu salvar a skin."
         self.items.append(skin)
         self._save()
         return skin, None
@@ -163,6 +261,10 @@ class Skins:
             return "Só quem enviou a skin pode apagá-la."
         self.items.remove(s)
         self._save()
+        if STORE:
+            STORE.delete("skin:" + s["file"])
+            IMAGE_CACHE.pop(s["file"], None)
+            return None
         try:
             os.remove(os.path.join(self.dir, s["file"]))
         except OSError:
@@ -170,6 +272,9 @@ class Skins:
         return None
 
     def _save(self):
+        if STORE:
+            STORE.put("skins", self.items)
+            return
         try:
             os.makedirs(self.dir, exist_ok=True)
             with open(self.index + ".tmp", "w", encoding="utf-8") as f:
@@ -484,7 +589,10 @@ async def handle(reader, writer):
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
             await writer.drain()
         elif route.startswith("/skins/"):  # imagens das skins enviadas pelos jogadores
-            await serve_static(writer, route[len("/skins/"):], SKINS_DIR)
+            if STORE:
+                await serve_skin_remote(writer, route[len("/skins/"):])
+            else:
+                await serve_static(writer, route[len("/skins/"):], SKINS_DIR)
         else:
             await serve_static(writer, path)
     except (asyncio.IncompleteReadError, asyncio.TimeoutError, ConnectionError, ValueError, OSError):
