@@ -22,6 +22,7 @@ FLIGHT_TIME = 0.4
 INVULN_TIME, CURSE_TIME = 2.0, 10.0
 SHIELD_TIME = 30.0
 WIN_POINTS, DRAW_POINTS = 3, 1
+MATCH_WIN_BONUS = 10  # pontos extras no ranking para quem vence a partida
 ICE_FACTOR = 0.9
 RAIN_INTERVAL, RAIN_WARN = 0.35, 1.0
 EVENT_FIRST, EVENT_MIN, EVENT_MAX = 12.0, 14.0, 24.0
@@ -450,8 +451,10 @@ class Room:
                        "points": p.points, "winner": p.match_win, "bot": p.bot} for p in ps]
         humans = [p for p in self.players.values() if not p.bot and p.played]  # inclui quem saiu no meio
         if not self.single and len(humans) >= MIN_RANKED_HUMANS:
-            self.history.record([{"name": p.name, "points": p.rank_points, "round_wins": p.rank_wins, "ip": p.ip,
-                                  "kills": p.kills, "match_win": p.match_win and p.rank_points > 0} for p in humans])
+            self.history.record([{"name": p.name, "round_wins": p.rank_wins, "ip": p.ip, "kills": p.kills,
+                                  "match_win": p.match_win and p.rank_points > 0,
+                                  "points": p.rank_points + (MATCH_WIN_BONUS if p.match_win and p.rank_points > 0 else 0)}
+                                 for p in humans])
         for p in self.players.values():
             p.ready = p.bot  # cada pessoa precisa dar "pronto" para a nova partida
         self.phase = "final"
