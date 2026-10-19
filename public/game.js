@@ -959,8 +959,10 @@ function init() {
     if (!owner) { toast("Digite seu nome na tela inicial antes de enviar uma skin."); return; }
     if (!upload) { toast("Escolha uma imagem primeiro."); return; }
     if (upload.url.length > 690000) { toast("Imagem grande demais (máximo 512 KB)."); return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { toast("Sem conexão com o servidor. Aguarde reconectar e tente de novo."); return; }
     $("upSend").disabled = true;
     send({ t: "skin_add", owner, name: $("upName").value.trim(), data: upload.url });
+    setTimeout(() => { if ($("upSend").disabled) { $("upSend").disabled = false; toast("O servidor não respondeu. Tente de novo."); } }, 10000);
   };
   $("skinBack").onclick = () => {
     closeUpload();
