@@ -21,6 +21,12 @@ const MAP_STYLE = {
   towers: { floor: ["#8a8f99", "#80858f"], wall: ["#4b5568", "#7c8aa6", "#2c3345"], block: ["#d9c27a", "#8a7433"] },
   fortress: { floor: ["#6d4d3a", "#745340"], wall: ["#3a2a22", "#5c4538", "#1f1612"], block: ["#c4553a", "#7a2a1a"] },
   ice: { floor: ["#cfe9f5", "#c2e0ee"], wall: ["#4f7a96", "#8fc0dc", "#2f5068"], block: ["#f2fbff", "#8cb9cf"] },
+  walls: { floor: ["#7d6a52", "#85715a"], wall: ["#4a3b2c", "#6e5a43", "#2b2118"], block: ["#c98c4a", "#7a4d20"] },
+  ice_stripes: { floor: ["#b9d9ea", "#aed0e4"], wall: ["#4f7a96", "#8fc0dc", "#2f5068"], block: ["#eaf6fc", "#7fb0c8"] },
+  chambers: { floor: ["#5b4a6b", "#63527a"], wall: ["#2c2438", "#4d4262", "#171221"], block: ["#d9a441", "#80571a"] },
+  belts_parallel: { floor: ["#5f646d", "#575c65"], wall: ["#30343b", "#4d525c", "#1b1e23"], block: ["#e0a93c", "#855c12"] },
+  bastions: { floor: ["#6a8a4a", "#719253"], wall: ["#5a5f6b", "#858c9c", "#363a44"], block: ["#b87a3f", "#6f4521"] },
+  lava: { floor: ["#3a2a2a", "#412f2f"], wall: ["#22181a", "#3d2c2f", "#0e0a0b"], block: ["#8a6a52", "#4d3826"] },
 };
 
 // powerups: cor, ícone, nome, descrição
@@ -30,7 +36,7 @@ const ITEMS = {
   speed_up: ["#16a085", "👟", "Velocidade", "Anda mais rápido"],
   full_fire: ["#c0392b", "💥", "Fogo total", "Alcance máximo"],
   remote: ["#2980b9", "📡", "Controle remoto", "Suas bombas só explodem quando você aperta E ou Shift"],
-  bomb_pass: ["#7f8c8d", "👻", "Passa-bomba", "Atravessa bombas"],
+  bomb_pass: ["#7f8c8d", "👻", "Passa-bomba", "Atravessa bombas. CTRL liga e desliga (desligado, chutar e socar bombas funciona)"],
   wall_pass: ["#a0522d", "🧱", "Passa-bloco", "Atravessa blocos destrutíveis"],
   kick: ["#d35400", "🥾", "Chute", "Ande contra uma bomba para chutá-la"],
   glove: ["#27ae60", "🧤", "Luva", "Espaço sobre a bomba a arremessa 3 casas à frente"],
@@ -39,7 +45,7 @@ const ITEMS = {
   heart: ["#e84393", "❤️", "Vida extra", "Sobrevive a mais uma explosão"],
   skull: ["#2d3436", "💀", "Caveira", "Maldição aleatória por 10 s (lento, rápido, sem bombas, bombas automáticas, controles invertidos…). Encoste em outro jogador para passá-la!"],
   line_bomb: ["#f39c12", "➡️", "Bombas em linha", "Solta todas as bombas de uma vez em linha"],
-  power_bomb: ["#6c5ce7", "☢️", "Super bomba", "A próxima bomba tem alcance máximo"],
+  power_bomb: ["#6c5ce7", "☢️", "Super bomba", "Sua primeira bomba tem alcance máximo, mas só uma por vez: ela precisa explodir para a próxima aparecer"],
 };
 const ITEM_ALIAS = { bomb: "bomb_up", range: "fire_up", speed: "speed_up" }; // nomes antigos do theme.json
 const CURSE_INFO = {
@@ -301,6 +307,11 @@ addEventListener("keydown", (e) => {
     if (!e.repeat) send({ t: "bomb" });
     return;
   }
+  if (e.code === "ControlLeft" || e.code === "ControlRight") { // liga/desliga o passa-bomba
+    e.preventDefault();
+    if (!e.repeat) send({ t: "pass" });
+    return;
+  }
   if (e.code === "KeyE" || e.code === "ShiftLeft" || e.code === "ShiftRight") {
     e.preventDefault();
     if (!e.repeat) send({ t: "det" });
@@ -457,7 +468,7 @@ async function prepareImage(file) {
 
 // ---------- formulários ----------
 const ROUND_OPTS = [1, 2, 3, 5, 7, 10, 15, 20];
-const TIME_OPTS = [30, 60, 90, 120, 180, 240, 300, 600];
+const TIME_OPTS = [30, 60, 75, 90, 120, 180, 240, 300, 600];
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 function field(label, input) { return el("label", {}, label, input); }
@@ -620,7 +631,7 @@ function updateUI() {
 
   const canKick = (p) => isHost && p.id !== myId && !p.bot && p.connected;
   const kickBtn = (p) => {
-    const b = el("button", { className: "kick", textContent: "Expulsar", title: `Expulsar ${p.name} da sala` });
+    const b = el("button", { className: "kick", textContent: "✖", title: `Expulsar ${p.name} da sala`, ariaLabel: `Expulsar ${p.name} da sala` });
     b.onclick = () => { if (confirm(`Expulsar ${p.name} da sala?`)) send({ t: "kick", id: p.id }); };
     return b;
   };
@@ -652,12 +663,14 @@ function updateUI() {
   if (S.phase !== "playing") $("curseMsg").classList.add("hidden");
 
   // HUD
-  renderOnce($("roundInfo"), [lobby, S.room, S.rounds, S.round, S.tiebreak, S.sudden, S.time_left], () => {
-    if (lobby) return [el("span", { textContent: S.room }), el("span", { textContent: `${S.rounds} rodadas` })];
-    return [el("span", { className: S.tiebreak ? "tie" : "", textContent: S.tiebreak ? "DESEMPATE" : `Rodada ${S.round}/${S.rounds}` }),
-      S.sudden ? el("span", { className: "sd", textContent: S.sd_style === "rain" ? "CHUVA DE FOGO!" : "MORTE SÚBITA!" })
-        : el("span", { className: "clock" + (S.time_left <= 10 ? " low" : ""), textContent: `⏱ ${fmtClock(S.time_left)}` })];
+  renderOnce($("timeInfo"), [lobby, S.room, S.sudden, S.sd_style, S.time_left], () => {
+    if (lobby) return [el("span", { className: "lbl", textContent: S.room })];
+    return [S.sudden ? el("span", { className: "sd", textContent: S.sd_style === "rain" ? "CHUVA DE FOGO!" : S.sd_style === "collapse" ? "CHÃO DESABANDO!" : "MORTE SÚBITA!" })
+      : el("span", { className: "clock" + (S.time_left <= 10 ? " low" : "") }, el("img", { className: "clock-ico", src: "assets/clock.webp", alt: "" }), fmtClock(S.time_left))];
   });
+  renderOnce($("roundInfo"), [lobby, S.rounds, S.round, S.tiebreak], () =>
+    [lobby ? el("span", { className: "lbl", textContent: `${S.rounds} rodadas` })
+      : el("span", { className: "rnd" + (S.tiebreak ? " tie" : ""), textContent: S.tiebreak ? "DESEMPATE" : `${S.round}/${S.rounds}` })]);
 
   // mais pontos primeiro (empate: mais vitórias, depois ordem de entrada)
   const ranked = [...S.players].sort((a, b) => b.points - a.points || a.id - b.id);
@@ -675,7 +688,7 @@ function updateUI() {
   const powIcon = (k, label) => A.items[k]
     ? el("img", { className: "pw-img" + (A.pixelArt ? " px" : ""), src: A.items[k].src, alt: ITEMS[k][2] })
     : el("span", { textContent: ITEMS[k][1] });
-  renderOnce($("myPowers"), me && [me.bombs, me.range, me.speed, me.abil, me.curse, me.curse_t, me.lives, me.shield, me.shield_t], () => {
+  renderOnce($("myPowers"), me && [me.bombs, me.range, me.speed, me.abil, me.pass_on, me.curse, me.curse_t, me.lives, me.shield, me.shield_t], () => {
     if (!me) return [];
     const out = [];
     const up = (k, n) => n > 0 && out.push(el("span", { className: "pw", title: `${ITEMS[k][2]}: ${ITEMS[k][3]}` }, powIcon(k), `+${n}`));
@@ -684,7 +697,11 @@ function updateUI() {
     up("speed_up", Math.round((me.speed - 4) / 0.6));
     const count = {};
     for (const a of me.abil) count[a] = (count[a] || 0) + 1;
-    for (const [a, n] of Object.entries(count)) out.push(el("span", { className: "pw", title: `${ITEMS[a][2]}: ${ITEMS[a][3]}` }, powIcon(a), n > 1 ? `×${n}` : ""));
+    for (const [a, n] of Object.entries(count)) {
+      const off = a === "bomb_pass" && !me.pass_on; // CTRL liga/desliga; desligado, chutar e socar bombas volta a funcionar
+      out.push(el("span", { className: "pw" + (off ? " off" : ""), title: `${ITEMS[a][2]}: ${ITEMS[a][3]}` + (a === "bomb_pass" ? " (CTRL liga/desliga)" : "") },
+        powIcon(a), a === "bomb_pass" ? (off ? "OFF" : "ON") : n > 1 ? `×${n}` : ""));
+    }
     if (me.lives) out.push(el("span", { className: "pw", title: `${ITEMS.heart[2]}: ${ITEMS.heart[3]}` }, powIcon("heart"), me.lives > 1 ? `×${me.lives}` : ""));
     if (me.shield) out.push(el("span", { className: "pw", title: `${ITEMS.shield[2]}: ${ITEMS.shield[3]}` }, powIcon("shield"), `${me.shield_t}s`));
     if (!out.length && !me.curse) out.push(el("span", { className: "pw none", textContent: "Nenhum poder ativo" }));
@@ -759,6 +776,9 @@ function drawGrid(grid, st, ts) {
         ctx.fillStyle = base; ctx.fillRect(px, py, TILE, TILE);
         ctx.fillStyle = light; ctx.fillRect(px, py, TILE, 5); ctx.fillRect(px, py, 5, TILE);
         ctx.fillStyle = dark; ctx.fillRect(px, py + TILE - 5, TILE, 5); ctx.fillRect(px + TILE - 5, py, 5, TILE);
+      } else if (c === "3") { // chão que desabou: buraco escuro
+        ctx.fillStyle = "#07060a"; ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillStyle = "rgba(255,255,255,.04)"; ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
       } else if (c === "2") {
         if (ts.block) { ctx.drawImage(ts.block, px, py, TILE, TILE); continue; }
         ctx.fillStyle = st.block[0]; ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
@@ -793,6 +813,17 @@ function drawSpecials(specials, now) {
         ctx.beginPath(); ctx.moveTo(px - 5, -9); ctx.lineTo(px + 3, 0); ctx.lineTo(px - 5, 9); ctx.stroke();
       }
       ctx.restore();
+    } else if (kind === "l") { // lava: magma animado com bolhas
+      const px = x * TILE, py = y * TILE, k = now / 600 + x * 1.7 + y * 2.3;
+      const g = ctx.createLinearGradient(px, py, px, py + TILE);
+      g.addColorStop(0, "#ff7a1a"); g.addColorStop(1, "#c4200c");
+      ctx.fillStyle = g; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = "rgba(255,214,102,.75)";
+      for (let i = 0; i < 3; i++) {
+        const bx = px + TILE * (0.2 + 0.3 * i), by = py + TILE * (0.25 + 0.5 * ((Math.sin(k + i * 2.1) + 1) / 2)), r = 3 + 2 * Math.sin(k * 1.3 + i);
+        ctx.beginPath(); ctx.arc(bx, by, Math.max(1.5, r), 0, 7); ctx.fill();
+      }
+      ctx.strokeStyle = "#5c0f05"; ctx.lineWidth = 2; ctx.strokeRect(px + 1, py + 1, TILE - 2, TILE - 2);
     } else if (kind === "i") { // gelo: azul claro com reflexos
       ctx.fillStyle = "rgba(170,225,255,.5)"; ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
       ctx.strokeStyle = "rgba(255,255,255,.75)"; ctx.lineWidth = 2; ctx.lineCap = "round";
@@ -830,11 +861,12 @@ function drawWarns(warns, now) {
   ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "20px system-ui, 'Noto Color Emoji'";
   for (const [x, y, kind] of warns) {
     const pulse = 0.5 + 0.5 * Math.sin(now / 90);
-    ctx.fillStyle = kind === "rock" ? `rgba(255,170,40,${0.2 + pulse * 0.3})` : `rgba(255,50,30,${0.2 + pulse * 0.35})`;
+    const fall = kind === "fall";
+    ctx.fillStyle = fall ? `rgba(60,40,30,${0.35 + pulse * 0.35})` : kind === "rock" ? `rgba(255,170,40,${0.2 + pulse * 0.3})` : `rgba(255,50,30,${0.2 + pulse * 0.35})`;
     ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
-    ctx.strokeStyle = kind === "rock" ? "#ffb347" : "#ff4a30"; ctx.lineWidth = 3;
+    ctx.strokeStyle = fall ? "#c9a37a" : kind === "rock" ? "#ffb347" : "#ff4a30"; ctx.lineWidth = 3;
     ctx.strokeRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4);
-    ctx.fillStyle = "#fff"; ctx.fillText(kind === "rock" ? "🪨" : "⚠️", (x + 0.5) * TILE, (y + 0.5) * TILE + 1);
+    ctx.fillStyle = "#fff"; ctx.fillText(fall ? "💥" : kind === "rock" ? "🪨" : "⚠️", (x + 0.5) * TILE, (y + 0.5) * TILE + 1);
   }
 }
 
@@ -849,11 +881,12 @@ function drawFlames(flames) {
 }
 
 function drawBombs(bombs, now) {
-  for (const [x, y, hop, t, , remote] of bombs) {
+  for (const [x, y, hop, t, , remote, power] of bombs) {
     const cx = (x + 0.5) * TILE, cy = (y + 0.5) * TILE - hop * TILE * 0.9;
     const r = TILE * 0.36 * (1 + 0.08 * Math.sin(now / (!remote && t < 0.7 ? 40 : 120)));
     ctx.fillStyle = "rgba(0,0,0,.25)";
     ctx.beginPath(); ctx.ellipse(cx, (y + 0.5) * TILE + r * 0.7, r * 0.8, r * 0.35, 0, 0, 7); ctx.fill();
+    if (power) { ctx.strokeStyle = "#ff7a1a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r + 5 + 2 * Math.sin(now / 120), 0, 7); ctx.stroke(); } // super bomba
     if (A.bomb) {
       const s = r * 2; // mesmo tamanho da bomba desenhada (~72% do tile), pulsando junto
       ctx.drawImage(A.bomb, cx - r, cy - r, s, s);
@@ -902,7 +935,10 @@ function drawFocus(now) {
   const cx = v.x * TILE, cy = v.y * TILE, pulse = 0.5 + 0.5 * Math.sin(now / 160);
   ctx.save();
   ctx.fillStyle = "rgba(0,0,0,.5)"; // escurece o resto do campo, deixando uma clareira em volta de você
-  ctx.beginPath(); ctx.rect(0, 0, W * TILE, H * TILE); ctx.arc(cx, cy, TILE * 1.7, 0, 7, true); ctx.fill("evenodd");
+  const R = TILE * 1.7;
+  ctx.beginPath(); ctx.rect(0, 0, W * TILE, H * TILE);
+  ctx.moveTo(cx + R, cy); // sem o moveTo o canvas liga o retângulo ao círculo e abre uma cunha clara no campo
+  ctx.arc(cx, cy, R, 0, Math.PI * 2, true); ctx.closePath(); ctx.fill("evenodd");
   ctx.strokeStyle = "#f5b82e"; ctx.lineWidth = 4; ctx.shadowColor = "#f5b82e"; ctx.shadowBlur = 14;
   ctx.beginPath(); ctx.arc(cx, cy, TILE * (0.78 + 0.1 * pulse), 0, 7); ctx.stroke();
   ctx.shadowBlur = 0; ctx.fillStyle = "#f5b82e"; ctx.strokeStyle = "#3b1f0c"; ctx.lineWidth = 3;

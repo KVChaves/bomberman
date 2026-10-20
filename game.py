@@ -25,10 +25,13 @@ WIN_POINTS, DRAW_POINTS = 3, 1
 MATCH_WIN_BONUS = 10  # pontos extras no ranking para quem vence a partida
 ICE_FACTOR = 0.9
 RAIN_INTERVAL, RAIN_WARN = 0.35, 1.0
+RAIN_RAMP, RAIN_FACTOR, RAIN_MIN = 5.0, 0.6, 0.03  # a cada RAIN_RAMP s o intervalo entre raios cai (x RAIN_FACTOR, mínimo RAIN_MIN) e entra +1 raio por disparo
+FALL_INTERVAL, FALL_WARN = 0.35, 1.2  # desabamento: um novo trecho começa a rachar a cada intervalo; cai depois do aviso
 EVENT_FIRST, EVENT_MIN, EVENT_MAX = 12.0, 14.0, 24.0
 ROCK_WARN, ROCKS = 1.5, 3
 SD_STYLES = {"spiral": "Morte súbita: o campo fecha em espiral!", "columns": "Morte súbita: paredes pelos lados!",
-             "rows": "Morte súbita: paredes por cima e por baixo!", "rain": "Morte súbita: chuva de fogo!"}
+             "rows": "Morte súbita: paredes por cima e por baixo!", "rain": "Morte súbita: chuva de fogo!",
+             "collapse": "Morte súbita: o chão está desabando!"}
 AIRDROP_KINDS = [k for k in ("bomb_up", "fire_up", "speed_up", "remote", "kick", "glove", "punch", "shield",
                              "heart", "line_bomb", "power_bomb")]
 MAX_LIVES = 3
@@ -81,8 +84,9 @@ class Player:
         self.face = "d"
         self.max_bombs, self.range, self.speed = 1, 2, BASE_SPEED
         self.remote = self.bomb_pass = self.wall_pass = False
+        self.pass_on = True  # passa-bomba ligado/desligado (CTRL): desligado, dá para chutar e socar bombas
         self.kick = self.glove = self.punch = self.line_bomb = False
-        self.power_bombs = 0
+        self.power_bomb = False  # super bomba: a primeira bomba solta é MAX_RANGE, mas só uma por vez em campo
         self.lives = 0
         self.shield = False  # colete: imortal por SHIELD_TIME segundos
         self.shield_t = 0.0
@@ -94,8 +98,8 @@ class Player:
         self.died_tick = 0
 
     def abilities(self):
-        return [k for k in ("remote", "bomb_pass", "wall_pass", "kick", "glove", "punch", "line_bomb")
-                if getattr(self, k)] + ["power_bomb"] * self.power_bombs
+        return [k for k in ("remote", "bomb_pass", "wall_pass", "kick", "glove", "punch", "line_bomb", "power_bomb")
+                if getattr(self, k)]
 
 
 class Bomb:
@@ -104,6 +108,7 @@ class Bomb:
         self.owner = owner
         self.range = rng
         self.remote = remote
+        self.power = False  # super bomba: enquanto ela não explode, o dono só solta bombas comuns
         self.t = REMOTE_SAFETY if remote else BOMB_FUSE
         self.passers = passers  # jogadores que ainda podem atravessar (acabaram de soltá-la)
         self.done = False
@@ -299,6 +304,12 @@ class Room:
             p.want_bomb = self.phase in ("playing", "over")
         elif t == "det":
             p.want_det = True
+        elif t == "pass" and p.bomb_pass:
+            p.pass_on = not p.pass_on
+            if not p.pass_on:  # não prende o jogador dentro da bomba em que ele está
+                for b in self.bombs:
+                    if self.overlaps_tile(p, b.x, b.y):
+                        b.passers.add(p.id)
 
     # ---------- fases ----------
     def preview(self):
@@ -321,7 +332,9 @@ class Room:
         self.sudden = False
         self.sd_order, self.sd_i, self.sd_t = spiral(self.w, self.h), 0, 0.0
         self.sd_style = "spiral"
-        self.warns = []  # [x, y, tipo, tempo restante]: rocha ou raio prestes a cair
+        self.sd_elapsed = 0.0
+        self.warns = []  # [x, y, tipo, tempo restante]: rocha, raio ou chão prestes a cair
+        self.holes = set()  # casas onde o chão já caiu (viram parede por dentro, mas o cliente desenha um buraco)
         self.ev_t = EVENT_FIRST
 
     def to_lobby(self):
@@ -495,10 +508,14 @@ class Room:
                     self.start_sudden()
             else:
                 self.sd_t -= TICK
+                self.sd_elapsed += TICK
                 while self.sd_t <= 0:
                     if self.sd_style == "rain":
                         self.rain_step()
-                        self.sd_t += RAIN_INTERVAL
+                        self.sd_t += max(RAIN_MIN, RAIN_INTERVAL * RAIN_FACTOR ** int(self.sd_elapsed / RAIN_RAMP))
+                    elif self.sd_style == "collapse":
+                        self.collapse_step()
+                        self.sd_t += FALL_INTERVAL
                     else:
                         self.sd_step()
                         self.sd_t += SD_INTERVAL
@@ -576,6 +593,8 @@ class Room:
         else:
             p.ice_dir = (0, 0)
         self.floor_effects(p)
+        if not p.alive:  # a lava matou
+            return
 
         if p.want_bomb:
             p.want_bomb = False
@@ -595,6 +614,9 @@ class Room:
     def floor_effects(self, p):
         """Esteira arrasta o jogador; portal teleporta para o par (uma vez, até ele sair do portal)."""
         sp = self.specials.get((int(p.x), int(p.y)))
+        if sp and sp[0] == "l":  # lava: colete protege; com vidas extras perde uma (e fica imune por um instante); sem nada, morre
+            self.hit(p)
+            return
         if sp and sp[0] == "b":
             self.move(p, sp[1][0], sp[1][1], BELT_SPEED * TICK, drag=True)
         elif sp and sp[0] == "w":
@@ -651,11 +673,15 @@ class Room:
 
     def start_sudden(self):
         self.sd_style = random.choice(list(SD_STYLES)) if self.sd_var else "spiral"
-        if self.sd_style in ("columns", "rows"):
+        if self.sd_style == "collapse":
+            self.sd_order = [(x, y) for y in range(1, self.h - 1) for x in range(1, self.w - 1)]
+            random.shuffle(self.sd_order)
+        elif self.sd_style in ("columns", "rows"):
             self.sd_order = edge_order(self.w, self.h, self.sd_style == "columns")
         else:
             self.sd_order = spiral(self.w, self.h)
         self.sd_i = 0
+        self.sd_elapsed = 0.0
         self.warns = []
         self.announce(SD_STYLES[self.sd_style])
 
@@ -667,7 +693,7 @@ class Room:
 
     def rain_step(self):
         alive = [p for p in self.players.values() if p.alive]
-        for _ in range(2):
+        for _ in range(2 + int(self.sd_elapsed / RAIN_RAMP)):  # mais raios por disparo a cada degrau
             if alive and random.random() < 0.5:  # metade dos raios mira em jogadores, para a rodada terminar
                 q = random.choice(alive)
                 cell = (int(q.x), int(q.y))
@@ -696,7 +722,11 @@ class Room:
                 continue
             self.warns.remove(w)
             x, y, kind = w[0], w[1], w[2]
-            if kind == "strike":
+            if kind == "fall":
+                if self.grid[y][x] != WALL:
+                    self.seal(x, y)
+                    self.holes.add((x, y))
+            elif kind == "strike":
                 if self.grid[y][x] == BLOCK:
                     self.grid[y][x] = EMPTY
                 self.items.pop((x, y), None)
@@ -711,24 +741,38 @@ class Room:
                         and (x, y) not in self.items and (x, y) not in self.specials):
                     self.grid[y][x] = BLOCK
 
+    def seal(self, x, y):
+        """A casa vira parede; o que estava nela some e quem estava em cima morre."""
+        self.grid[y][x] = WALL
+        self.items.pop((x, y), None)
+        self.flames.pop((x, y), None)
+        self.specials.pop((x, y), None)
+        b = self.bomb_at.pop((x, y), None)
+        if b:
+            b.done = True
+            self.bombs.remove(b)
+        for p in self.players.values():
+            if p.alive and (int(p.x), int(p.y)) == (x, y):
+                p.alive = False
+
     def sd_step(self):
         while self.sd_i < len(self.sd_order):
             x, y = self.sd_order[self.sd_i]
             self.sd_i += 1
             if self.grid[y][x] == WALL:
                 continue
-            self.grid[y][x] = WALL
-            self.items.pop((x, y), None)
-            self.flames.pop((x, y), None)
-            self.specials.pop((x, y), None)
-            b = self.bomb_at.pop((x, y), None)
-            if b:
-                b.done = True
-                self.bombs.remove(b)
-            for p in self.players.values():
-                if p.alive and (int(p.x), int(p.y)) == (x, y):
-                    p.alive = False
+            self.seal(x, y)
             return
+
+    def collapse_step(self):
+        """Racha as próximas casas (em ordem sorteada); elas caem quando o aviso acaba. Quem não sair, cai junto."""
+        n = 0
+        while self.sd_i < len(self.sd_order) and n < 2:
+            x, y = self.sd_order[self.sd_i]
+            self.sd_i += 1
+            if self.grid[y][x] != WALL:
+                self.warns.append([x, y, "fall", FALL_WARN])
+                n += 1
 
     # ---------- movimento ----------
     @staticmethod
@@ -741,7 +785,7 @@ class Room:
         if t == WALL or (t == BLOCK and not p.wall_pass):
             return True
         b = self.bomb_at.get((tx, ty))
-        return b is not None and not p.bomb_pass and p.id not in b.passers
+        return b is not None and not (p.bomb_pass and p.pass_on) and p.id not in b.passers
 
     def blocked(self, px, py, p):
         for ty in range(math.floor(py - HALF), math.floor(py + HALF) + 1):
@@ -761,7 +805,7 @@ class Room:
         if (p.kick or p.punch) and not drag:  # bateu numa bomba: chuta ou soca
             ax, ay = int(p.x + dx * (HALF + 0.05)), int(p.y + dy * (HALF + 0.05))
             b = self.bomb_at.get((ax, ay))
-            if b and not b.fly and not p.bomb_pass and p.id not in b.passers:
+            if b and not b.fly and not (p.bomb_pass and p.pass_on) and p.id not in b.passers:
                 if p.punch:
                     self.throw(b, dx, dy)
                 else:
@@ -804,16 +848,15 @@ class Room:
         count = free if (p.line_bomb and not auto) else 1
         dx, dy = FACE[p.face]
         rng = 1 if p.curse == "short" else p.range
+        power = p.power_bomb and not any(b.owner == p.id and b.power for b in self.bombs)
         for i in range(count):
             x, y = tx + dx * i, ty + dy * i
             if self.grid[y][x] != EMPTY or (x, y) in self.bomb_at:
                 break
-            r = rng
-            if i == 0 and p.power_bombs > 0:
-                p.power_bombs -= 1
-                r = MAX_RANGE
+            r = MAX_RANGE if i == 0 and power else rng
             passers = {q.id for q in self.players.values() if q.alive and self.overlaps_tile(q, x, y)}
             b = Bomb(x, y, p.id, r, passers, p.remote and not p.bot)
+            b.power = i == 0 and power
             self.bombs.append(b)
             self.bomb_at[(x, y)] = b
 
@@ -918,7 +961,7 @@ class Room:
 
     def detonate(self, first):
         queue = list(first)
-        cells, destroyed, owners = set(), set(), {}
+        cells, destroyed, owners, block_owner = set(), set(), {}, {}
         while queue:
             b = queue.pop()
             if b.done:
@@ -928,6 +971,8 @@ class Room:
             cells.update(c)
             owners.update((cc, b.owner) for cc in c)
             destroyed.update(bl)
+            for blk in bl:
+                block_owner.setdefault(blk, b.owner)
             queue.extend(o for o in hit if not o.done)
         for b in self.bombs:
             if b.done and self.bomb_at.get((b.x, b.y)) is b:
@@ -941,7 +986,17 @@ class Room:
         for x, y in destroyed:
             self.grid[y][x] = EMPTY
             if random.random() < ITEM_CHANCE:
-                self.items[(x, y)] = random.choices(ITEM_KINDS, [ITEM_WEIGHTS[k] for k in ITEM_KINDS])[0]
+                kinds = self.droppable(self.players.get(block_owner.get((x, y))))
+                self.items[(x, y)] = random.choices(kinds, [ITEM_WEIGHTS[k] for k in kinds])[0]
+
+    @staticmethod
+    def droppable(p):
+        """Escudo e bomba-relógio juntos são fortes demais: quem tem um deles não faz o outro aparecer dos blocos que explode
+        (pode pegá-lo de outro jogador ou do chão)."""
+        if p is None:
+            return ITEM_KINDS
+        blocked = ("remote" if p.shield else None, "shield" if p.remote else None)
+        return [k for k in ITEM_KINDS if k not in blocked]
 
     def danger(self):
         """Células que vão pegar fogo (para a IA dos bots); calculado uma vez por tick."""
@@ -971,7 +1026,7 @@ class Room:
         elif kind == "skull":
             p.curse, p.curse_t, p.auto_t, p.pass_cd = random.choice(CURSES), CURSE_TIME, 0.4, 0.5
         elif kind == "power_bomb":
-            p.power_bombs += 1
+            p.power_bomb = True
         elif kind:  # remote, bomb_pass, wall_pass, kick, glove, punch, line_bomb
             setattr(p, kind, True)
 
@@ -996,18 +1051,18 @@ class Room:
             "countdown": math.ceil(min(self.timer, COUNTDOWN)) if self.phase == "countdown" else 0,
             "intro": self.phase == "countdown" and self.timer > COUNTDOWN,
             "winner": self.winner, "final": self.final if self.phase == "final" else [],
-            "grid": "".join(str(c) for row in self.grid for c in row),
+            "grid": "".join("3" if (x, y) in self.holes else str(c) for y, row in enumerate(self.grid) for x, c in enumerate(row)),
             "players": [
                 {"id": p.id, "name": p.name, "skin": p.skin, "x": round(p.x, 3), "y": round(p.y, 3),
                  "alive": p.alive, "ready": p.ready, "connected": p.connected, "waiting": p.waiting,
                  "bot": p.bot, "face": p.face, "bombs": p.max_bombs, "range": p.range,
                  "speed": round(p.speed, 1), "wins": p.wins, "points": p.points, "lives": p.lives,
-                 "shield": p.shield, "shield_t": math.ceil(p.shield_t) if p.shield else 0, "invuln": p.invuln_t > 0, "curse": p.curse,
+                 "pass_on": p.pass_on, "shield": p.shield, "shield_t": math.ceil(p.shield_t) if p.shield else 0, "invuln": p.invuln_t > 0, "curse": p.curse,
                  "curse_t": math.ceil(p.curse_t) if p.curse else 0,
                  "abil": p.abilities()}
                 for p in sorted(self.connected(), key=lambda p: p.id)
             ],
-            "bombs": [[*(round(v, 2) for v in b.pos()), round(b.t, 2), b.owner, b.remote] for b in self.bombs],
+            "bombs": [[*(round(v, 2) for v in b.pos()), round(b.t, 2), b.owner, b.remote, b.power] for b in self.bombs],
             "flames": [[x, y, round(exp - self.now, 2)] for (x, y), exp in self.flames.items()],
             "items": [[x, y, k] for (x, y), k in self.items.items()],
             "specials": [[x, y, "b", {(1, 0): "r", (-1, 0): "l", (0, 1): "d", (0, -1): "u"}[sp[1]]] if sp[0] == "b"

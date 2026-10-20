@@ -38,7 +38,7 @@ Formatos: PNG, SVG, GIF (sem animar), WebP. Ideal: imagens quadradas; são estic
 | `flame` | uma célula de chama (usada em todas as células da explosão) |
 | `skins` | lista de skins de personagem (quantas quiser) — cada jogador escolhe a sua em **Mudar skin** |
 
-Ids dos mapas: `classic`, `arena`, `cross`, `factory`, `diamond`, `volcano`, `big`, `portals`, `belt`, `maze`, `towers`, `fortress`.
+Ids dos mapas: `classic`, `arena`, `cross`, `factory`, `diamond`, `volcano`, `big`, `portals`, `belt`, `maze`, `towers`, `fortress`, `columns`, `rings`, `grid3`, `converge`, `teleport`, `river`, `ice`, `open`, `walls`, `ice_stripes`, `chambers`, `belts_parallel`, `bastions`, `lava`.
 
 ### Powerups (`items`)
 

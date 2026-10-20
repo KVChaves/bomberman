@@ -89,7 +89,7 @@ button.ghost {
 button.ghost:active { box-shadow: inset 0 2px 0 rgba(255,220,160,.15), 0 1px 0 #1f1209, 0 3px 6px rgba(0,0,0,.4); }
 button:disabled { opacity: .55; cursor: not-allowed; filter: grayscale(.5); transform: none; }
 button.kick {
-  color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.5); font-size: 11px; padding: 2px 8px; border-radius: 8px; margin-left: 8px; border-width: 1.5px;
+  color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.5); font-size: 12px; line-height: 1; padding: 3px 7px; border-radius: 8px; margin-left: 8px; border-width: 1.5px;
   background: linear-gradient(#f0705a, #b83a26); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 2px 0 #5a160b;
 }
 button.kick:active { transform: translateY(1px); box-shadow: 0 1px 0 #5a160b; }
@@ -185,7 +185,7 @@ canvas#game {
 
 /* painel lateral: tamanhos fixos para a tela não tremer quando a tabela muda */
 #hud { display: flex; flex-direction: column; gap: 12px; width: 350px; flex: none; line-height: 1.3; }
-#roundInfo, #scoreTable, #myPowers {
+#roundInfo, #scoreTable {
   background: linear-gradient(180deg, var(--wood2), var(--wood)); border: 2px solid #1a0f08; border-radius: 14px;
   box-shadow: inset 0 0 0 2px rgba(245,184,46,.12), 0 8px 20px rgba(0,0,0,.4);
 }
@@ -198,11 +198,12 @@ canvas#game {
 #scoreTable { table-layout: fixed; overflow: hidden; border-collapse: separate; border-spacing: 0; }
 #scoreTable td, #scoreTable th { padding: 6px 8px; height: 36px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #scoreTable th { height: 30px; }
-#scoreTable th:nth-child(2), #scoreTable th:nth-child(3) { width: 40px; }
-#scoreTable th:nth-child(4) { width: 170px; }
+#scoreTable th:nth-child(1) { width: 140px; }
+#scoreTable th:nth-child(2) { width: 44px; }
+#scoreTable td:nth-child(3) { text-align: left; padding-left: 4px; }
 #scoreTable tr.dead td { opacity: .42; }
 #scoreTable tr.me td:first-child { font-weight: 800; box-shadow: inset 4px 0 0 var(--gold); }
-#scoreTable tbody tr:first-child td:nth-child(3) { color: #ffd84a; font-weight: 800; }
+#scoreTable tbody tr:first-child td:nth-child(2) { color: #ffd84a; font-weight: 800; }
 #myPowers { padding: 10px 12px; font-size: 14px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 7px; min-height: 92px; }
 #myPowers > span { background: rgba(0,0,0,.3); border: 1px solid rgba(255,220,160,.14); border-radius: 999px; padding: 3px 11px; font-weight: 700; }
 #myPowers .curse { color: #e2b8ff; border-color: rgba(179,107,255,.6); background: rgba(90,30,130,.4); }
@@ -350,3 +351,41 @@ main > #chat #chatForm { flex-direction: column; }
 #myPowers .pw { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px 3px 5px; }
 #myPowers .pw-img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
 #myPowers .pw-img.px { image-rendering: pixelated; }
+
+/* barra superior única: tempo, rodada e poderes numa faixa de madeira, igual aos demais painéis */
+#topBar { display: flex; align-items: stretch; gap: 12px; min-height: 64px; }
+#topBar #timeInfo, #topBar #roundInfo, #topBar #myPowers { padding: 4px 18px; border-radius: 14px; min-height: 64px; box-sizing: border-box;
+  background: linear-gradient(180deg, var(--wood2), var(--wood)); border: 2px solid #1a0f08;
+  box-shadow: inset 0 0 0 2px rgba(245,184,46,.12), 0 8px 20px rgba(0,0,0,.4); }
+#topBar #timeInfo, #topBar #roundInfo { display: flex; align-items: center; justify-content: center; gap: 16px; flex: none; color: #fff; }
+#topBar #roundInfo::before, #topBar #roundInfo::after { display: none; }
+#topBar .lbl { font-family: var(--display); font-size: 16px; letter-spacing: 1px; color: var(--gold); white-space: nowrap; }
+#topBar #timeInfo .clock, #topBar #timeInfo .sd { display: inline-flex; align-items: center; gap: 10px; font-family: "Courier New", monospace; font-size: 36px; font-weight: 900; line-height: 1;
+  color: #fff; -webkit-text-stroke: 1px #000; text-shadow: 3px 3px 0 #000; font-variant-numeric: tabular-nums; letter-spacing: 2px; }
+#topBar #timeInfo .sd { font-size: 22px; color: #ffb02e; letter-spacing: 1px; }
+#topBar #timeInfo .clock.low { color: #ff6a5a; }
+.clock-ico { flex: none; width: 44px; height: 44px; object-fit: contain; filter: drop-shadow(2px 2px 0 #000); }
+#topBar #roundInfo .rnd { font-family: "Courier New", monospace; font-size: 36px; font-weight: 900; line-height: 1; letter-spacing: 2px; white-space: nowrap;
+  color: #ffd84a; -webkit-text-stroke: 1px #000; text-shadow: 3px 3px 0 #000; font-variant-numeric: tabular-nums; }
+#topBar #roundInfo .rnd.tie { color: #ffd84a; font-size: 22px; letter-spacing: 1px; }
+#topBar #myPowers { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; gap: 4px 6px; }
+#myPowers .pw.off { opacity: .5; }
+@media (max-width: 720px) {
+  #topBar { flex-wrap: wrap; }
+  #myPowers { order: 3; flex-basis: 100%; }
+}
+
+/* chat e painel direito acompanham a altura da barra superior + mapa: grade com 3 colunas; chat e painel não aumentam a linha (height 0 + min-height 100%) */
+@media (min-width: 1000px) {
+  #screen-game main { display: grid; grid-template-columns: 260px auto 350px; grid-template-rows: auto auto; gap: 12px 18px; justify-content: center; align-items: start; }
+  #playCol { display: contents; }
+  #topBar { grid-column: 2; grid-row: 1; }
+  #stage { grid-column: 2; grid-row: 2; }
+  main > #chat { grid-column: 1; grid-row: 1 / 3; align-self: stretch; height: 0; min-height: 100%; max-height: none; overflow: hidden; }
+  #hud { grid-column: 3; grid-row: 1 / 3; align-self: stretch; height: 0; min-height: 100%; width: auto; min-width: 0; }
+  #hud > #legend { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #8a5a2e transparent; }
+  #hud > #legend:not([open]) { flex: none; overflow: hidden; }
+  #hud #legendList { max-height: none; overflow: visible; }
+  #hud #legend summary { position: sticky; top: 0; z-index: 1; background: var(--wood2); }
+  #hud #scoreTable { flex: none; }
+}

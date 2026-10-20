@@ -11,6 +11,9 @@ DIRS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
 def _passable(room, c, start):
     x, y = c
+    sp = room.specials.get(c)
+    if sp and sp[0] == "l" and c != start:  # bots não pisam em lava
+        return False
     return room.grid[y][x] == EMPTY and (c == start or c not in room.bomb_at)
 
 

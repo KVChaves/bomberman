@@ -17,7 +17,7 @@ Se os amigos não conseguirem conectar, libere a porta 8000 (TCP) no firewall do
   - Quem cria a sala é o gerente e define mapa, número de rodadas e tempo de cada rodada (pode mudar no lobby).
   - A partida só começa quando todos os jogadores da sala clicam em **Pronto!** (mínimo 2).
   - Quem entra depois que a partida começou espera a próxima rodada.
-  - Se o tempo da rodada acabar começa a **morte súbita**: paredes fecham a arena em espiral.
+  - Se o tempo da rodada acabar começa a **morte súbita**: paredes fecham a arena em espiral. Com "Morte súbita variada" também pode vir chuva de fogo, paredes pelos lados ou **chão desabando** (as casas racham e caem até não sobrar onde pisar).
 
 ## Pontuação
 - Durante a partida há uma tabela com vitórias e pontos de cada jogador.
@@ -33,8 +33,10 @@ Setas ou WASD para andar, **espaço** para soltar bomba, **E** ou **Shift** para
 💀 caveira (maldição por 10 s) · ➡️ bombas em linha · ☢️ super bomba.
 
 ## Mapas
-12 fases: Clássico, Arena Aberta, Quadrantes, Fábrica, Diamante, Vulcão, Campo Grande (19×15), Labirinto, Torres, Fortaleza e duas com mecânicas especiais:
+26 fases: Clássico, Arena Aberta, Quadrantes, Fábrica, Diamante, Vulcão, Campo Grande, Labirinto, Torres, Fortaleza e duas com mecânicas especiais:
 - **Portais:** pise num portal para ser teletransportado ao par (3 pares coloridos, espelhados pelo centro). Só teleporta de novo depois que você sair do portal.
+- **Muralhas, Faixas de Gelo, Câmaras, Esteiras Paralelas e Bastiões:** muralhas concêntricas com passagens em lados opostos; faixas de gelo sem pilares; quatro câmaras ligadas por portas protegidas por blocos fixos; esteiras em linhas alternadas empurrando para lados opostos; e quatro bastiões 2×2 com uma cruz de blocos no centro.
+- **Campo de Lava:** sem pilares, só blocos quebráveis e poças de lava. Quem pisa na lava sem colete morre; com vidas extras perde uma (e fica imune por 2 s); o colete protege totalmente. As bombas e as chamas passam por cima da lava, e os bots evitam pisar nela. Sempre há caminho entre os pontos de partida sem tocar na lava.
 - **Esteira:** um circuito de esteiras no sentido horário que arrasta jogadores e bombas (dá para andar contra ela). Por padrão os mapas **se alternam a cada rodada** (sem repetir até todos terem aparecido); o gerente pode fixar um mapa.
 
 ## Skins dos jogadores
