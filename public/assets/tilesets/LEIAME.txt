@@ -1,0 +1,42 @@
+Tilesets 16x16 - renderizar a 3x (48px) com image-rendering: pixelated
+
+Ordem fixa nos spritesheets (tileset_<tema>.png), igual em todos os temas:
+  0 parede   1 inquebravel   2 quebravel   3 piso_a   4 piso_b   5 piso_decorado
+  6+ tiles de mecanica do tema (quando existem)
+
+Mecanicas extras:
+  grama      -> 6 agua           (Rio)
+  gelo       -> 6 escorregadio   (Pista de Gelo, Faixas de Gelo)
+  industrial -> 6 esteira        (aponta para a direita; gire no codigo para as outras direcoes)
+  vulcao     -> 6 lava           (Campo de Lava)
+  magico     -> 6 portal         (overlay transparente: vai por cima de qualquer piso, use tambem no Teletransporte)
+
+Temas -> mapas:
+  grama: Classico, Campo Grande, Labirinto, Bastioes, Colunas, Aneis, Patio, Convergencia, Teletransporte, Rio, Campo Livre
+  deserto: Arena Aberta, Muralhas
+  gelo: Quadrantes, Pista de Gelo, Faixas de Gelo
+  industrial: Fabrica, Esteira, Esteiras Paralelas, Torres
+  vulcao: Vulcao, Campo de Lava
+  cristal: Diamante
+  magico: Portais
+  masmorra: Camaras
+  fortaleza: Fortaleza
+
+ANIMACOES (pasta animacoes/) - tiras de 8 frames de 16x16 (128x16), frame 0 a esquerda
+  esteira_anim.png       60 ms/frame   (anda para a direita; espelhe/gire para outras direcoes)
+  agua_anim.png         150 ms/frame
+  escorregadio_anim.png 110 ms/frame
+  portal_anim.png        90 ms/frame   (transparente, vai por cima do piso)
+  lava_anim.png         140 ms/frame
+
+Canvas/JS:   frame = Math.floor(performance.now() / msPorFrame) % 8
+             ctx.drawImage(tira, frame*16, 0, 16, 16, x, y, 48, 48)
+
+CSS (escala 3x = 48px por tile):
+  .tile-esteira {
+    width: 48px; height: 48px; image-rendering: pixelated;
+    background: url("animacoes/esteira_anim.png") 0 0 / 384px 48px;
+    animation: tira8 0.48s steps(8) infinite;      /* 8 x 60 ms */
+  }
+  @keyframes tira8 { to { background-position: -384px 0; } }
+  (para os outros: troque a imagem e a duracao = 8 x ms/frame)

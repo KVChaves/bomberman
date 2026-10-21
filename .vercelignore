@@ -1,7 +1,10 @@
-# Só a pasta public/ vai para a Vercel; o resto é do servidor ou é lixo.
-_arquivo
+# Só a pasta public/ vai para a Vercel; o resto é do servidor ou de apoio.
+_local
 data
 __pycache__
-*.py
+server
+scripts
+supabase
+docs
 Dockerfile
 .dockerignore

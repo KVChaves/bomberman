@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>CTI Bombers</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -13,18 +13,17 @@
 
   <!-- ===== Tela inicial ===== -->
   <section id="screen-title" class="screen">
-    <div class="title-menu">
-      <input id="playerName" maxlength="12" placeholder="Seu nome" autocomplete="off">
-      <nav class="menu">
-        <button id="btnSingle"><span class="ico">🤖</span>Singleplayer</button>
-        <button id="btnMulti"><span class="ico">🌐</span>Multiplayer</button>
-        <button id="btnSkin" class="ghost"><span class="ico">🎨</span>Mudar skin <canvas id="skinMini" width="28" height="28"></canvas></button>
-      </nav>
-    </div>
+    <nav class="title-menu menu-sign" aria-label="Menu principal">
+      <button id="btnSingle" aria-label="Singleplayer"></button>
+      <button id="btnMulti" aria-label="Multiplayer"></button>
+      <button id="btnSkin" aria-label="Personagens"></button>
+      <button id="btnRanking" aria-label="Ranking"></button>
+    </nav>
     <h1 class="logo"><span>CTI</span> BOMBERS</h1>
     <p class="tagline">Explosões entre amigos</p>
 
-    <aside id="rankPanel" class="panel">
+    <aside id="rankPanel" class="panel hidden">
+      <button id="rankClose" class="rank-close" aria-label="Fechar ranking" title="Fechar">✖</button>
       <h2>🏆 Ranking geral</h2>
       <div class="rank-scroll">
         <table id="historyTable">
@@ -37,7 +36,11 @@
 
   <!-- ===== Escolher skin ===== -->
   <section id="screen-skin" class="screen hidden">
-    <h1 class="logo small">Escolha sua skin</h1>
+    <h1 class="logo small">Personagens</h1>
+    <div id="nameRow" class="panel">
+      <canvas id="skinMini" width="28" height="28" title="Seu personagem"></canvas>
+      <input id="playerName" maxlength="12" placeholder="Seu nome" autocomplete="off" aria-label="Seu nome">
+    </div>
     <div id="skinGrid"></div>
     <div id="skinUpload" class="panel hidden">
       <input id="upFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
@@ -84,11 +87,7 @@
           </form>
         </section>
       <div id="playCol">
-        <div id="topBar">
-          <div id="timeInfo"></div>
-          <div id="myPowers"></div>
-          <div id="roundInfo"></div>
-        </div>
+        <div id="myPowers"></div>
         <div id="stage">
           <canvas id="game"></canvas>
           <div id="banner" class="hidden"></div>
@@ -113,12 +112,25 @@
         </div>
       </div>
       <aside id="hud">
+        <div id="topBar">
+          <div id="timeInfo"></div>
+          <div id="roundInfo"></div>
+        </div>
         <table id="scoreTable"></table>
         <details id="legend" open><summary>O que cada poder faz</summary><ul id="legendList"></ul></details>
         <button id="leaveBtn2" class="ghost">Sair da sala</button>
       </aside>
     </main>
   </section>
+
+  <div id="touch" class="hidden" aria-hidden="true">
+    <div id="stick"><div id="knob"></div></div>
+    <div id="touchBtns">
+      <button type="button" id="tDet" class="ghost">Detonar</button>
+      <button type="button" id="tPass" class="ghost">Passar</button>
+      <button type="button" id="tBomb">Bomba</button>
+    </div>
+  </div>
 
   <script src="config.js"></script>
   <script src="game.js"></script>

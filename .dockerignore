@@ -1,5 +1,8 @@
-_arquivo
+_local
 data
 __pycache__
 .git
 *.md
+docs
+scripts
+supabase

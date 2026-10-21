@@ -45,6 +45,7 @@ const ITEMS = {
   heart: ["#e84393", "❤️", "Vida extra", "Sobrevive a mais uma explosão"],
   skull: ["#2d3436", "💀", "Caveira", "Maldição aleatória por 10 s (lento, rápido, sem bombas, bombas automáticas, controles invertidos…). Encoste em outro jogador para passá-la!"],
   line_bomb: ["#f39c12", "➡️", "Bombas em linha", "Solta todas as bombas de uma vez em linha"],
+  pierce_bomb: ["#3b82c4", "🔱", "Bomba perfurante", "O fogo das suas bombas atravessa blocos e bombas; só as paredes o param"],
   power_bomb: ["#6c5ce7", "☢️", "Super bomba", "Sua primeira bomba tem alcance máximo, mas só uma por vez: ela precisa explodir para a próxima aparecer"],
 };
 const ITEM_ALIAS = { bomb: "bomb_up", range: "fire_up", speed: "speed_up" }; // nomes antigos do theme.json
@@ -66,7 +67,8 @@ const ctx = canvas.getContext("2d");
 function sizeCanvas() { canvas.width = W * TILE; canvas.height = H * TILE; ctx.imageSmoothingEnabled = !A.pixelArt; }
 
 // ---------- assets / tema (veja public/assets/LEIAME.md) ----------
-const A = { pixelArt: false, tilesets: { default: { floor: [], wall: null, block: null } }, items: {}, bomb: null, flame: null };
+const BOMB_FUSE = 2.0; // mesmo valor do servidor: serve para animar a bomba desde que foi solta
+const A = { death: null, pixelArt: false, tileset: null, tilesets: { default: { floor: [], wall: null, block: null } }, items: {}, bomb: null, bombPower: null, bombPierce: null, flame: null, flameSheet: null };
 let SKINS = []; // skins do tema, pelo número: {color, sheet?}
 let CUSTOM = []; // skins enviadas pelos jogadores (lista do servidor): {id, file, name, owner}
 const customLoaded = {}; // id → skin pronta para desenhar
@@ -81,12 +83,279 @@ function loadImg(src, base = "assets/") {
   });
 }
 
+// tilesets por tema (assets/tilesets/<tema>/): parede (borda do mapa), inquebravel (pilares), quebravel, piso_a, piso_b e piso_decorado,
+// mais mecânicas que ficam em um tema só mas valem para qualquer mapa: agua (grama), escorregadio (gelo), esteira (industrial), lava (vulcao), portal (magico)
+const TILESET_FILES = ["parede", "inquebravel", "quebravel", "piso_a", "piso_b", "piso_decorado"];
+const TILESET_EXTRA = { agua: "grama", escorregadio: "gelo", esteira: "industrial", lava: "vulcao", portal: "magico" };
+
+const TILE_ANIM_MS = { esteira: 60, agua: 150, escorregadio: 110, portal: 90, lava: 140 }; // ms por quadro (tilesets/LEIAME.txt)
+// desenha o tile de mecânica (animado ou parado) na casa atual do contexto, que já deve estar posicionado
+function drawExtraTile(t, x, y, w, h, now) {
+  const fw = t.img.width / t.frames, f = t.frames > 1 ? Math.floor(now / t.ms) % t.frames : 0;
+  ctx.drawImage(t.img, f * fw, 0, fw, t.img.height, x, y, w, h);
+}
+
+async function loadTilesets(cfg) {
+  const dir = (cfg.dir || "tilesets").replace(/\/$/, "");
+  const themes = {};
+  await Promise.all((cfg.themes || []).map(async (name) => {
+    const imgs = await Promise.all(TILESET_FILES.map((f) => loadImg(`${dir}/${name}/${f}.png`)));
+    themes[name] = Object.fromEntries(TILESET_FILES.map((f, i) => [f, imgs[i]]));
+  }));
+  const extra = {};
+  await Promise.all(Object.entries(TILESET_EXTRA).map(async ([f, name]) => {
+    const anim = await loadImg(`${dir}/animacoes/${f}_anim.png`); // tira de 8 quadros 16x16 (se existir); senão o tile parado do tema
+    if (anim) { extra[f] = { img: anim, frames: Math.max(1, Math.round(anim.width / anim.height)), ms: TILE_ANIM_MS[f] || 120 }; return; }
+    const img = await loadImg(`${dir}/${name}/${f}.png`);
+    extra[f] = img && { img, frames: 1, ms: 0 };
+  }));
+  return { themes, extra, maps: cfg.maps || {} };
+}
+
 async function loadTileset(t = {}) {
   return {
     floor: (await Promise.all([].concat(t.floor || []).map(loadImg))).filter(Boolean),
     wall: await loadImg(t.wall),
     block: await loadImg(t.block),
   };
+}
+
+// bomba: imagem única ("bomb.webp") ou spritesheet em uma linha {image, frames, fps, frameWidth?, gap?}.
+// Os quadros são achados pela transparência (cada bloco de colunas com desenho é um quadro, e podem ter tamanhos diferentes);
+// se a contagem não bater, usa uma grade uniforme com frameWidth/gap.
+function sheetRects(img, n, fw, gap) {
+  try {
+    const c = el("canvas", { width: img.width, height: img.height });
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, img.width, img.height).data, runs = [];
+    let from = -1;
+    for (let x = 0; x <= img.width; x++) {
+      let any = false;
+      if (x < img.width) for (let y = 0; y < img.height && !any; y++) any = d[(y * img.width + x) * 4 + 3] > 8;
+      if (any && from < 0) from = x;
+      if (!any && from >= 0) { runs.push([from, x]); from = -1; }
+    }
+    if (runs.length === n) {
+      return runs.map(([x0, x1]) => {
+        let y0 = img.height, y1 = 0;
+        for (let y = 0; y < img.height; y++) for (let x = x0; x < x1; x++) if (d[(y * img.width + x) * 4 + 3] > 8) { y0 = Math.min(y0, y); y1 = Math.max(y1, y + 1); break; }
+        return { sx: x0, sy: y0, sw: x1 - x0, sh: y1 - y0 };
+      });
+    }
+  } catch { /* imagem de outra origem: cai na grade uniforme */ }
+  return Array.from({ length: n }, (_, i) => ({ sx: i * (fw + gap), sy: 0, sw: fw, sh: img.height }));
+}
+
+// atlas da explosão: grade n×n com todas as peças (centro, trechos de braço e pontas nas 4 direções).
+// Cada célula é achada pela transparência; "parts" diz quais células de [coluna, linha] formam cada peça (lista = variações).
+// Lendo da esquerda para a direita, a linha do meio do atlas é: bulbo, ponta, trecho, CENTRO, trecho, ponta, bulbo.
+// A ponta (1 casa de largura, extremidade afilada) é a peça de verdade do fim do braço; os bulbos largos com asas das extremidades não são usados.
+const FLAME_PARTS = {
+  center: [[3, 3]], h: [[2, 3], [4, 3]], v: [[3, 2], [3, 4]],
+  left: [[1, 3]], right: [[5, 3]], up: [[3, 1]], down: [[3, 5]],
+};
+function alphaRuns(img) {
+  try {
+    const c = el("canvas", { width: img.width, height: img.height });
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, img.width, img.height).data;
+    const scan = (len, other, at) => {
+      const runs = []; let from = -1;
+      for (let i = 0; i <= len; i++) {
+        let any = false;
+        if (i < len) for (let j = 0; j < other && !any; j++) any = d[at(i, j) * 4 + 3] > 8;
+        if (any && from < 0) from = i;
+        if (!any && from >= 0) { runs.push([from, i]); from = -1; }
+      }
+      return runs;
+    };
+    return { xs: scan(img.width, img.height, (i, j) => j * img.width + i), ys: scan(img.height, img.width, (i, j) => i * img.width + j) };
+  } catch { return null; } // imagem de outra origem: usa a grade uniforme
+}
+
+async function loadFlameSheet(f) {
+  const img = await loadImg(f.image);
+  if (!img) return null;
+  const n = f.grid || 7, runs = alphaRuns(img), ok = runs && runs.xs.length === n && runs.ys.length === n;
+  const xs = ok ? runs.xs.map((r) => r[0]) : Array.from({ length: n }, (_, i) => Math.round((i * img.width) / n));
+  const ys = ok ? runs.ys.map((r) => r[0]) : Array.from({ length: n }, (_, i) => Math.round((i * img.height) / n));
+  const cw = ok ? Math.max(...runs.xs.map((r) => r[1] - r[0])) : Math.round(img.width / n);
+  const ch = ok ? Math.max(...runs.ys.map((r) => r[1] - r[0])) : Math.round(img.height / n);
+  const parts = {};
+  for (const [name, cells] of Object.entries(f.parts || FLAME_PARTS)) parts[name] = cells.map(([c, r]) => ({ sx: xs[c], sy: ys[r], sw: cw, sh: ch }));
+  return { img, parts, cache: new Map() };
+}
+
+// As peças do atlas não têm cores idênticas nas bordas, então o encontro de duas peças deixava uma linha visível.
+// Cada peça é pré-desenhada com FLAME_OV px a mais nos lados que encostam em outra chama. Só as bordas da esquerda e de cima
+// esmaecem; como as chamas são desenhadas da esquerda para a direita e de cima para baixo, a peça nova entra aos poucos por cima
+// da vizinha, que continua opaca (esmaecer as duas deixaria o fundo aparecer no encontro). Lados: L=1 R=2 U=4 D=8.
+const FLAME_OV = 5, FLAME_EDGE = 6; // sobreposição entre peças e largura do contorno que não esmaece (px)
+const FLAME_TRIM = 30; // largura (px do atlas) do contorno escuro que sai do lado onde há outra chama paralela, para as duas se unirem
+// lados ligados a outra chama; os mesmos valores do servidor (CONN_* em server/game.py)
+const FLAME_L = 1, FLAME_R = 2, FLAME_U = 4, FLAME_D = 8;
+const FLAME_H = FLAME_L | FLAME_R, FLAME_V = FLAME_U | FLAME_D, FLAME_ALL = FLAME_H | FLAME_V;
+// O centro (lâmpada) do atlas ocupa a casa toda e só encaixa quando há braços dos 4 lados; sem braço, a lateral reta colava na parede.
+// Em trecho reto (só vertical ou só horizontal) vira o trecho do braço com a lâmpada por cima, esmaecida nas bordas;
+// em canto, T ou casa isolada, os lados sem chama fecham em arco com contorno.
+function flameCenterCanvas(sheet, vi, conn, lat) {
+  const S = TILE + FLAME_OV * 2, O = FLAME_OV, mid = S / 2, hasH = conn & FLAME_H, hasV = conn & FLAME_V;
+  const c = el("canvas", { width: S, height: S }), g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  const q = sheet.parts.center[0];
+  if ((hasV && !hasH) || (hasH && !hasV)) {
+    const arm = hasV ? "v" : "h";
+    g.drawImage(flameCanvas(sheet, arm, vi % sheet.parts[arm].length, conn, lat), 0, 0);
+    const bulb = el("canvas", { width: S, height: S }), b = bulb.getContext("2d");
+    b.imageSmoothingEnabled = false;
+    b.drawImage(sheet.img, q.sx, q.sy, q.sw, q.sh, O, O, TILE, TILE);
+    b.globalCompositeOperation = "destination-in"; // só a lâmpada e o brilho em volta, sem as bordas retas
+    const rg = b.createRadialGradient(mid, mid, TILE * 0.22, mid, mid, TILE * 0.5);
+    rg.addColorStop(0, "rgba(0,0,0,1)"); rg.addColorStop(1, "rgba(0,0,0,0)");
+    b.fillStyle = rg; b.fillRect(0, 0, S, S);
+    g.drawImage(bulb, 0, 0);
+    return c;
+  }
+  if (conn) { // canto ou T: só os braços que têm chama saem do centro; o lado da parede não ganha sprite esticado
+    const E = FLAME_EDGE + O;
+    // metade do braço (rx..): `cut` lista as faixas de contorno do braço que encostam num braço perpendicular e some nelas,
+    // senão o contorno do braço de baixo atravessava o de cima e deixava "ombros" escuros na junção
+    const clip = (rx, ry, rw, rh, arm, cut = []) => {
+      const part = el("canvas", { width: S, height: S }), p = part.getContext("2d");
+      p.imageSmoothingEnabled = false;
+      p.drawImage(flameCanvas(sheet, arm, vi % sheet.parts[arm].length, conn & (arm === "h" ? FLAME_H : FLAME_V), 0), 0, 0);
+      p.globalCompositeOperation = "destination-in";
+      p.fillRect(rx, ry, rw, rh);
+      p.globalCompositeOperation = "destination-out";
+      for (const [cx, cy, cw, ch] of cut) p.fillRect(cx, cy, cw, ch);
+      g.drawImage(part, 0, 0);
+    };
+    if (conn & FLAME_L) clip(0, 0, mid, S, "h");
+    if (conn & FLAME_R) clip(mid, 0, mid, S, "h");
+    const side = [...(conn & FLAME_L ? [[O - 1, O, E + 1, S - 2 * O]] : []), ...(conn & FLAME_R ? [[S - O - E, O, E + 1, S - 2 * O]] : [])];
+    if (conn & FLAME_U) clip(0, 0, S, mid, "v", side);
+    if (conn & FLAME_D) clip(0, mid, S, mid, "v", side);
+    const bulb = el("canvas", { width: S, height: S }), b = bulb.getContext("2d");
+    b.imageSmoothingEnabled = false;
+    b.drawImage(sheet.img, q.sx, q.sy, q.sw, q.sh, O, O, TILE, TILE);
+    b.globalCompositeOperation = "destination-in";
+    const rg = b.createRadialGradient(mid, mid, TILE * 0.22, mid, mid, TILE * 0.5);
+    rg.addColorStop(0, "rgba(0,0,0,1)"); rg.addColorStop(1, "rgba(0,0,0,0)");
+    b.fillStyle = rg; b.fillRect(0, 0, S, S);
+    g.drawImage(bulb, 0, 0);
+    return c;
+  }
+  // casa isolada: fecha em arco com contorno
+  const x0 = conn & FLAME_L ? 0 : O, x1 = conn & FLAME_R ? S : S - O, y0 = conn & FLAME_U ? 0 : O, y1 = conn & FLAME_D ? S : S - O;
+  g.drawImage(sheet.img, q.sx, q.sy, q.sw, q.sh, x0, y0, x1 - x0, y1 - y0);
+  const strips = [];
+  if (conn & FLAME_L) strips.push([0, O, mid, TILE]);
+  if (conn & FLAME_R) strips.push([mid, O, mid, TILE]);
+  if (conn & FLAME_U) strips.push([O, 0, TILE, mid]);
+  if (conn & FLAME_D) strips.push([O, mid, TILE, mid]);
+  const shape = el("canvas", { width: S, height: S }), k = shape.getContext("2d");
+  k.fillStyle = "#000"; k.beginPath(); k.arc(mid, mid, TILE / 2, 0, 7); k.fill();
+  for (const [rx, ry, rw, rh] of strips) k.fillRect(rx, ry, rw, rh);
+  g.globalCompositeOperation = "destination-in";
+  g.drawImage(shape, 0, 0);
+  const ring = el("canvas", { width: S, height: S }), r = ring.getContext("2d"); // contorno escuro só nos arcos (some onde há braço)
+  r.strokeStyle = flameOutline(sheet); r.lineWidth = 5;
+  r.beginPath(); r.arc(mid, mid, TILE / 2 - 1.5, 0, 7); r.stroke();
+  r.globalCompositeOperation = "destination-out";
+  for (const [rx, ry, rw, rh] of strips) r.fillRect(rx, ry, rw, rh);
+  g.globalCompositeOperation = "source-atop";
+  g.drawImage(ring, 0, 0);
+  return c;
+}
+
+// cor do contorno escuro do sprite (a borda do trecho vertical do atlas); se a leitura falhar, um vermelho escuro parecido
+function flameOutline(sheet) {
+  if (sheet.outline) return sheet.outline;
+  sheet.outline = "#7a1405";
+  try {
+    const q = sheet.parts.v[0], t = el("canvas", { width: 1, height: 1 }).getContext("2d");
+    t.drawImage(sheet.img, q.sx + 3, q.sy + Math.floor(q.sh / 2), 1, 1, 0, 0, 1, 1);
+    const d = t.getImageData(0, 0, 1, 1).data;
+    if (d[3] > 200) sheet.outline = `rgb(${d[0]},${d[1]},${d[2]})`;
+  } catch { /* imagem de outra origem */ }
+  return sheet.outline;
+}
+
+function flameCanvas(sheet, part, vi, conn, lat = 0, flip = 0) {
+  const key = `${part}:${vi}:${conn}:${lat}:${flip}`;
+  let c = sheet.cache.get(key);
+  if (c) return c;
+  if (part === "center" && conn !== FLAME_ALL) { // centro sem braços dos 4 lados: adapta ao que existe em volta
+    c = flameCenterCanvas(sheet, vi, conn, lat);
+    sheet.cache.set(key, c);
+    return c;
+  }
+  const q = sheet.parts[part][vi], S = TILE + FLAME_OV * 2, O = FLAME_OV;
+  c = el("canvas", { width: S, height: S });
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  const x0 = conn & FLAME_L ? 0 : O, x1 = conn & FLAME_R ? S : S - O, y0 = conn & FLAME_U ? 0 : O, y1 = conn & FLAME_D ? S : S - O;
+  // lado com chama paralela (lat): o contorno desse lado é cortado do sprite e o miolo estica até a borda da casa, unindo as duas chamas
+  const tl = lat & FLAME_L ? FLAME_TRIM : 0, tr = lat & FLAME_R ? FLAME_TRIM : 0, tu = lat & FLAME_U ? FLAME_TRIM : 0, td = lat & FLAME_D ? FLAME_TRIM : 0;
+  // flip (1 = espelha na horizontal, 2 = na vertical): peças vizinhas lado a lado usam a mesma variação, uma delas espelhada,
+  // então as duas bordas que se encostam são idênticas e a emenda some (os cortes lat valem no lado da tela, não no do sprite)
+  const fx = flip & 1, fy = flip & 2;
+  const sl = fx ? tr : tl, sr = fx ? tl : tr, su = fy ? td : tu, sd = fy ? tu : td;
+  g.save();
+  g.translate(fx ? S : 0, fy ? S : 0);
+  g.scale(fx ? -1 : 1, fy ? -1 : 1);
+  g.drawImage(sheet.img, q.sx + sl, q.sy + su, q.sw - sl - sr, q.sh - su - sd, fx ? S - x1 : x0, fy ? S - y1 : y0, x1 - x0, y1 - y0);
+  g.restore();
+  // máscara em um canvas à parte: começa opaca e cada lado esquerdo/de cima ligado recebe um degradê de 0 (ponta de fora) a 1 (2*OV para dentro).
+  // As faixas do contorno (FLAME_EDGE px de cada lado do braço) ficam sempre opacas: esmaecer o contorno abria um "bocado" na borda da chama.
+  const m = el("canvas", { width: S, height: S }), h = m.getContext("2d");
+  h.fillStyle = "#000"; h.fillRect(0, 0, S, S);
+  const side = (gx0, gy0, gx1, gy1, strips) => {
+    const t = el("canvas", { width: S, height: S }), k = t.getContext("2d");
+    const grad = k.createLinearGradient(gx0, gy0, gx1, gy1);
+    grad.addColorStop(0, "rgba(0,0,0,0)"); grad.addColorStop(1, "rgba(0,0,0,1)");
+    k.fillStyle = grad; k.fillRect(0, 0, S, S);
+    k.fillStyle = "#000"; for (const [rx, ry, rw, rh] of strips) k.fillRect(rx, ry, rw, rh);
+    h.globalCompositeOperation = "destination-in";
+    h.drawImage(t, 0, 0);
+  };
+  const E = FLAME_EDGE;
+  if (conn & FLAME_L) side(0, 0, 2 * O, 0, [[0, 0, S, O + E], [0, S - O - E, S, O + E]]); // junção horizontal: contorno de cima e de baixo
+  if (conn & FLAME_U) side(0, 0, 0, 2 * O, [[0, 0, O + E, S], [S - O - E, 0, O + E, S]]); // junção vertical: contorno da esquerda e da direita
+  g.globalCompositeOperation = "destination-in";
+  g.drawImage(m, 0, 0);
+  sheet.cache.set(key, c);
+  return c;
+}
+
+// máscara de lados ligados a outra chama (L=1 R=2 U=4 D=8) -> peça do atlas; ponta aponta para o lado sem chama
+function flamePart(m) {
+  if (m === 0 || ((m & FLAME_H) && (m & FLAME_V))) return "center";
+  if (m === FLAME_H) return "h";
+  if (m === FLAME_V) return "v";
+  return { [FLAME_R]: "left", [FLAME_L]: "right", [FLAME_D]: "up", [FLAME_U]: "down" }[m];
+}
+
+// animação de morte: grade uniforme (sem cortar o vazio), pois a posição vertical de cada quadro faz parte da animação
+async function loadDeathSheet(d) {
+  if (!d) return null;
+  if (typeof d === "string") d = { image: d };
+  const img = await loadImg(d.image);
+  if (!img) return null;
+  const n = d.frames || 8, fw = Math.floor(img.width / n);
+  return { img, n, fw, fps: d.fps || 9, scale: d.scale || 1.4 };
+}
+
+async function loadBombSheet(b) {
+  if (!b) return null;
+  if (typeof b === "string") b = { image: b };
+  const img = await loadImg(b.image);
+  if (!img) return null;
+  const n = b.frames || 1, gap = b.gap || 0, fw = b.frameWidth || Math.round((img.width - gap * (n - 1)) / n);
+  const rects = n > 1 ? sheetRects(img, n, fw, gap) : [{ sx: 0, sy: 0, sw: img.width, sh: img.height }];
+  return { img, rects, maxDim: Math.max(...rects.map((q) => Math.max(q.sw, q.sh))), fps: b.fps || 6 };
 }
 
 async function loadSkin(s, i) {
@@ -156,6 +425,7 @@ async function loadTheme() {
   try { t = await (await fetch("assets/theme.json", { cache: "no-store" })).json(); } catch { /* sem tema */ }
   A.pixelArt = !!t.pixelArt;
   if (t.background) $("screen-title").style.setProperty("--title-bg", `url("assets/${t.background}")`);
+  A.tileset = t.tilesets ? await loadTilesets(t.tilesets) : null;
   A.tilesets.default = await loadTileset(t.tiles);
   for (const [id, m] of Object.entries(t.maps || {})) A.tilesets[id] = await loadTileset(m.tiles);
   const items = t.items || {};
@@ -165,8 +435,13 @@ async function loadTheme() {
   }
   buildLegend.done = false;
   buildLegend();
-  A.bomb = await loadImg(t.bomb);
-  A.flame = await loadImg(t.flame);
+  const bombs = t.bombs || {}; // sprites das bombas: normal, power (super bomba) e pierce (perfurante); "bomb" (antigo) = normal
+  A.death = await loadDeathSheet(t.death);
+  A.bomb = await loadBombSheet(bombs.normal || t.bomb);
+  A.bombPower = await loadBombSheet(bombs.power);
+  A.bombPierce = await loadBombSheet(bombs.pierce);
+  A.flame = typeof t.flame === "string" ? await loadImg(t.flame) : null; // imagem única para todas as casas em chamas
+  A.flameSheet = t.flame && typeof t.flame === "object" ? await loadFlameSheet(t.flame) : null; // atlas com peças por direção
   const defs = t.skins || t.players || [];
   SKINS = (await Promise.all(defs.map(loadSkin))).filter(Boolean);
   for (let i = SKINS.length; i < MIN_SKINS; i++) SKINS.push({ color: DEFAULT_COLORS[i % DEFAULT_COLORS.length] });
@@ -203,6 +478,7 @@ function toast(msg) {
 
 function show(name) {
   screen = name;
+  document.body.classList.toggle("in-game", name === "game");
   for (const s of document.querySelectorAll(".screen")) s.classList.toggle("hidden", s.id !== "screen-" + name);
   if (name === "title") drawSkinMini();
   if (name === "multi") renderRooms();
@@ -331,6 +607,31 @@ addEventListener("keyup", (e) => {
 });
 addEventListener("blur", () => { held.length = 0; sendDir(); });
 
+// controles de toque: analógico (direção dominante, com zona morta) e botões de ação
+const TOUCH = matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0 && !matchMedia("(hover: hover)").matches;
+if (TOUCH) {
+  document.body.classList.add("touch-ui");
+  $("touch").classList.remove("hidden");
+  const stick = $("stick"), knob = $("knob");
+  const setDir = (d) => { held.length = 0; if (d) held.push(d); sendDir(); };
+  const move = (e) => {
+    const r = stick.getBoundingClientRect(), R = r.width / 2;
+    let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R);
+    const len = Math.hypot(dx, dy);
+    if (len > R) { dx = (dx / len) * R; dy = (dy / len) * R; }
+    knob.style.transform = `translate(${dx * 0.7}px, ${dy * 0.7}px)`;
+    setDir(len < R * 0.25 ? "" : Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "r" : "l") : (dy > 0 ? "d" : "u"));
+  };
+  stick.addEventListener("pointerdown", (e) => { stick.setPointerCapture(e.pointerId); move(e); e.preventDefault(); });
+  stick.addEventListener("pointermove", (e) => { if (stick.hasPointerCapture(e.pointerId)) move(e); });
+  const release = () => { knob.style.transform = ""; setDir(""); };
+  stick.addEventListener("pointerup", release);
+  stick.addEventListener("pointercancel", release);
+  const tap = (id, msg) => $(id).addEventListener("pointerdown", (e) => { e.preventDefault(); send({ t: msg }); });
+  tap("tBomb", "bomb"); tap("tDet", "det"); tap("tPass", "pass");
+  document.addEventListener("contextmenu", (e) => { if (screen === "game") e.preventDefault(); });
+}
+
 // ---------- skins ----------
 function drawCharacter(g, sk, face, cx, cy, size, moving, now) {
   const r = size * 0.4;
@@ -433,7 +734,7 @@ function buildSkinGrid() {
 let upload = null; // {url (data:), img}
 
 function openUpload() {
-  if (!$("playerName").value.trim()) { toast("Digite seu nome na tela inicial antes de enviar uma skin."); return; }
+  if (!$("playerName").value.trim()) { toast("Digite seu nome acima antes de enviar uma skin."); return; }
   $("skinUpload").classList.remove("hidden");
   $("skinUpload").scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -499,8 +800,8 @@ function buildForms() {
 function playerInfo() {
   const name = $("playerName").value.trim();
   if (!name) {
-    toast("Digite seu nome primeiro!");
-    show("title");
+    toast("Digite seu nome em Personagens primeiro!");
+    show("skin");
     $("playerName").focus();
     return null;
   }
@@ -666,7 +967,7 @@ function updateUI() {
   renderOnce($("timeInfo"), [lobby, S.room, S.sudden, S.sd_style, S.time_left], () => {
     if (lobby) return [el("span", { className: "lbl", textContent: S.room })];
     return [S.sudden ? el("span", { className: "sd", textContent: S.sd_style === "rain" ? "CHUVA DE FOGO!" : S.sd_style === "collapse" ? "CHÃO DESABANDO!" : "MORTE SÚBITA!" })
-      : el("span", { className: "clock" + (S.time_left <= 10 ? " low" : "") }, el("img", { className: "clock-ico", src: "assets/clock.webp", alt: "" }), fmtClock(S.time_left))];
+      : el("span", { className: "clock" + (S.time_left <= 10 ? " low" : "") }, el("img", { className: "clock-ico", src: "assets/ui/clock.webp", alt: "" }), fmtClock(S.time_left))];
   });
   renderOnce($("roundInfo"), [lobby, S.rounds, S.round, S.tiebreak], () =>
     [lobby ? el("span", { className: "lbl", textContent: `${S.rounds} rodadas` })
@@ -676,10 +977,13 @@ function updateUI() {
   const ranked = [...S.players].sort((a, b) => b.points - a.points || a.id - b.id);
   renderOnce($("scoreTable"), [ranked.map((p) => [p.id, p.name, p.points, p.alive, p.waiting, p.lives, p.shield, p.curse, p.connected]), isHost], () => {
     const rows = ranked.map((p) => {
-      const tags = (p.waiting ? "⏳" : "") + (p.lives ? "❤️".repeat(p.lives) : "") + (p.shield ? "🛡️" : "") + (p.curse ? "💀" : "") + (p.connected ? "" : " ✖");
+      // vidas extras = corações; eliminado = caveira (ícones do tema escuro, assets/ui)
+      const tags = [p.waiting ? "⏳" : "", ...Array.from({ length: p.lives || 0 }, () => el("i", { className: "icone-vida" })),
+        !p.alive && !p.waiting && !lobby ? el("i", { className: "icone-morto", title: "Eliminado" }) : "",
+        p.shield ? "🛡️" : "", p.curse ? "💀" : "", p.connected ? "" : " ✖"];
       const tr = el("tr", { className: (p.alive || lobby ? "" : "dead") + (p.id === myId ? " me" : "") },
         el("td", { title: p.name }, avatar(p.skin, 26), p.name),
-        el("td", { className: "num", textContent: p.points }), el("td", { textContent: tags }, canKick(p) ? kickBtn(p) : ""));
+        el("td", { className: "num", textContent: p.points }), el("td", {}, ...tags, canKick(p) ? kickBtn(p) : ""));
       return tr;
     });
     return [el("thead", {}, el("tr", {}, el("th", { textContent: "Jogador" }), el("th", { className: "num", textContent: "Pts" }), el("th"))), el("tbody", {}, ...rows)];
@@ -708,6 +1012,17 @@ function updateUI() {
     if (me.curse) out.push(el("span", { className: "curse", textContent: `💀 ${CURSE_NAMES[me.curse]} · ${me.curse_t}s`, title: CURSE_INFO[me.curse][1] }));
     return out;
   });
+  fitPowers();
+}
+
+// a barra tem altura fixa: com muitos poderes/maldição, os ícones e o texto encolhem em vez de a barra crescer (e o mapa pular)
+function fitPowers() {
+  const box = $("myPowers");
+  if (box.dataset.fit === lastKey.myPowers && box.dataset.w === String(box.clientWidth)) return;
+  box.dataset.fit = lastKey.myPowers; box.dataset.w = String(box.clientWidth);
+  let k = 1;
+  box.style.setProperty("--pws", k);
+  while (k > 0.45 && box.scrollHeight > box.clientHeight + 1) { k = Math.round((k - 0.05) * 100) / 100; box.style.setProperty("--pws", k); }
 }
 
 // ---------- avisos da caveira ----------
@@ -751,25 +1066,43 @@ function renderOnce(el_, data, build) {
 // ---------- desenho ----------
 function currentStyle() {
   const d = A.tilesets.default, m = A.tilesets[S.map] || {};
+  const set = A.tileset && A.tileset.themes[A.tileset.maps[S.map]]; // tema de tiles do mapa (assets/tilesets)
   return {
     st: MAP_STYLE[S.map] || MAP_STYLE.classic,
-    ts: { floor: m.floor && m.floor.length ? m.floor : d.floor, wall: m.wall || d.wall, block: m.block || d.block },
+    ts: { floor: m.floor && m.floor.length ? m.floor : d.floor, wall: m.wall || d.wall, block: m.block || d.block, set: set && set.piso_a ? set : null },
   };
 }
 
+// enfeite do piso em ~5% das casas, sempre nas mesmas (sorteio fixo pela posição)
+const decorated = (x, y) => ((Math.imul(x + 1, 73856093) ^ Math.imul(y + 1, 19349663)) >>> 0) % 100 < 5;
+
 function drawFloor(st, ts) {
+  const set = ts.set;
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
+      if (set) {
+        const img = set.piso_decorado && decorated(x, y) ? set.piso_decorado : (x + y) % 2 ? set.piso_b || set.piso_a : set.piso_a;
+        ctx.drawImage(img, x * TILE, y * TILE, TILE, TILE);
+        continue;
+      }
       if (ts.floor.length) { ctx.drawImage(ts.floor[(x + y) % ts.floor.length], x * TILE, y * TILE, TILE, TILE); continue; }
       ctx.fillStyle = st.floor[(x + y) % 2];
       ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
     }
 }
 
-function drawGrid(grid, st, ts) {
+function drawGrid(grid, st, ts, now) {
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const c = grid[y * W + x], px = x * TILE, py = y * TILE;
+      if (c === "1" && ts.set) { // borda do mapa = parede; pilares de dentro = inquebravel; no Rio a fileira de pilares do meio é água
+        const border = x === 0 || y === 0 || x === W - 1 || y === H - 1;
+        const water = S.map === "river" && !border && y === Math.floor(H / 2) && A.tileset.extra.agua;
+        if (water) { drawExtraTile(water, px, py, TILE, TILE, now); continue; }
+        const img = border ? ts.set.parede : ts.set.inquebravel;
+        if (img) { ctx.drawImage(img, px, py, TILE, TILE); continue; }
+      }
+      if (c === "2" && ts.set && ts.set.quebravel) { ctx.drawImage(ts.set.quebravel, px, py, TILE, TILE); continue; }
       if (c === "1") {
         if (ts.wall) { ctx.drawImage(ts.wall, px, py, TILE, TILE); continue; }
         const [base, light, dark] = st.wall;
@@ -801,6 +1134,19 @@ const BELT_ANGLE = { r: 0, d: Math.PI / 2, l: Math.PI, u: -Math.PI / 2 };
 function drawSpecials(specials, now) {
   for (const [x, y, kind, extra] of specials) {
     const cx = (x + 0.5) * TILE, cy = (y + 0.5) * TILE;
+    const tile = A.tileset && A.tileset.extra;
+    if (tile) { // tiles do tema (assets/tilesets): esteira (gira para a direção), gelo, lava e portal (por cima do piso, com cor diferente por par)
+      if (kind === "b" && tile.esteira) {
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(BELT_ANGLE[extra]);
+        drawExtraTile(tile.esteira, -TILE / 2, -TILE / 2, TILE, TILE, now); ctx.restore(); continue;
+      }
+      if (kind === "i" && tile.escorregadio) { drawExtraTile(tile.escorregadio, x * TILE, y * TILE, TILE, TILE, now); continue; }
+      if (kind === "l" && tile.lava) { drawExtraTile(tile.lava, x * TILE, y * TILE, TILE, TILE, now); continue; }
+      if (kind === "w" && tile.portal) {
+        ctx.filter = `hue-rotate(${[0, 90, 180, 270][extra % 4]}deg)`;
+        drawExtraTile(tile.portal, x * TILE, y * TILE, TILE, TILE, now); ctx.filter = "none"; continue;
+      }
+    }
     if (kind === "b") { // esteira: base escura com setas correndo na direção do movimento
       ctx.save();
       ctx.beginPath(); ctx.rect(x * TILE, y * TILE, TILE, TILE); ctx.clip();
@@ -870,26 +1216,90 @@ function drawWarns(warns, now) {
   }
 }
 
+// A chama some aos poucos (alfa < 1 na maior parte da vida). Desenhar cada casa já semitransparente sobrepõe as peças nos encontros
+// e deixa linhas visíveis; por isso as casas de mesmo alfa são desenhadas opacas em uma camada e a camada entra no mapa de uma vez.
+let flameLayer = null;
+const flameAlpha = (t) => Math.min(1, 0.35 + t * 2);
+
 function drawFlames(flames) {
-  for (const [x, y, t] of flames) {
-    ctx.globalAlpha = Math.min(1, 0.35 + t * 2);
-    if (A.flame) { ctx.drawImage(A.flame, x * TILE, y * TILE, TILE, TILE); ctx.globalAlpha = 1; continue; }
-    ctx.fillStyle = "#ff8a1f"; ctx.fillRect(x * TILE + 3, y * TILE + 3, TILE - 6, TILE - 6);
-    ctx.fillStyle = "#ffe14d"; ctx.fillRect(x * TILE + 12, y * TILE + 12, TILE - 24, TILE - 24);
+  if (!A.flameSheet) {
+    for (const [x, y, t] of flames) {
+      ctx.globalAlpha = flameAlpha(t);
+      if (A.flame) ctx.drawImage(A.flame, x * TILE, y * TILE, TILE, TILE);
+      else {
+        ctx.fillStyle = "#ff8a1f"; ctx.fillRect(x * TILE + 3, y * TILE + 3, TILE - 6, TILE - 6);
+        ctx.fillStyle = "#ffe14d"; ctx.fillRect(x * TILE + 12, y * TILE + 12, TILE - 24, TILE - 24);
+      }
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (!flames.length) return;
+  if (!flameLayer || flameLayer.width !== canvas.width || flameLayer.height !== canvas.height) {
+    flameLayer = el("canvas", { width: canvas.width, height: canvas.height });
+    flameLayer.getContext("2d").imageSmoothingEnabled = false;
+  }
+  const layer = flameLayer.getContext("2d");
+  const flameAt = new Set(flames.map((f) => `${f[0]},${f[1]}`));
+  const masks = new Map(flames.map((f) => [`${f[0]},${f[1]}`, f[3] ?? FLAME_ALL]));
+  const groups = new Map(); // alfa (arredondado) -> casas
+  for (const f of flames) {
+    const a = Math.round(flameAlpha(f[2]) * 20) / 20;
+    if (!groups.has(a)) groups.set(a, []);
+    groups.get(a).push(f);
+  }
+  for (const [alpha, cells] of groups) {
+    cells.sort((a, b) => a[1] - b[1] || a[0] - b[0]); // a ordem importa para o fundido das emendas
+    layer.clearRect(0, 0, flameLayer.width, flameLayer.height);
+    for (const [x, y, , m = FLAME_ALL] of cells) {
+      const part = flamePart(m), list = A.flameSheet.parts[part] || A.flameSheet.parts.center;
+      // lados que encostam em outra casa em chamas (as peças se fundem nesses lados)
+      const conn = (flameAt.has(`${x - 1},${y}`) ? FLAME_L : 0) | (flameAt.has(`${x + 1},${y}`) ? FLAME_R : 0)
+        | (flameAt.has(`${x},${y - 1}`) ? FLAME_U : 0) | (flameAt.has(`${x},${y + 1}`) ? FLAME_D : 0);
+      // outra chama ao lado do braço (não na direção dele): as duas se unem em vez de ficarem separadas por um contorno
+      const lat = conn & (part === "h" || part === "left" || part === "right" ? FLAME_V : part === "v" || part === "up" || part === "down" ? FLAME_H : 0);
+      const beamV = part === "v" || part === "up" || part === "down", beamH = part === "h" || part === "left" || part === "right";
+      // braços vizinhos lado a lado: mesma variação ao longo da linha e espelho alternado entre as colunas (ou linhas), para as bordas coincidirem
+      const vi = beamV ? y % list.length : beamH ? x % list.length : (x + y) % list.length;
+      let flip = lat ? (beamV ? x & 1 : beamH ? (y & 1) << 1 : 0) : 0;
+      // duas lâmpadas lado a lado: a da direita é espelhada para encostar com a borda igual à da esquerda
+      if (part === "center" && (conn & FLAME_L) && flamePart(masks.get(`${x - 1},${y}`) ?? 0) === "center") flip = 1;
+      layer.drawImage(flameCanvas(A.flameSheet, part, vi, conn, lat, flip), x * TILE - FLAME_OV, y * TILE - FLAME_OV);
+    }
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(flameLayer, 0, 0);
     ctx.globalAlpha = 1;
   }
 }
 
 function drawBombs(bombs, now) {
-  for (const [x, y, hop, t, , remote, power] of bombs) {
+  for (const [x, y, hop, t, , remote, power, pierce] of bombs) {
     const cx = (x + 0.5) * TILE, cy = (y + 0.5) * TILE - hop * TILE * 0.9;
-    const r = TILE * 0.36 * (1 + 0.08 * Math.sin(now / (!remote && t < 0.7 ? 40 : 120)));
+    const sheet = (power && A.bombPower) || (pierce && A.bombPierce) || A.bomb; // super bomba e perfurante têm o seu próprio sprite
+    // com sprite, a animação são os próprios quadros; sem sprite, a bomba desenhada pulsa
+    const r = sheet ? TILE * 0.42 : TILE * 0.36 * (1 + 0.08 * Math.sin(now / (!remote && t < 0.7 ? 40 : 120)));
     ctx.fillStyle = "rgba(0,0,0,.25)";
     ctx.beginPath(); ctx.ellipse(cx, (y + 0.5) * TILE + r * 0.7, r * 0.8, r * 0.35, 0, 0, 7); ctx.fill();
-    if (power) { ctx.strokeStyle = "#ff7a1a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r + 5 + 2 * Math.sin(now / 120), 0, 7); ctx.stroke(); } // super bomba
-    if (A.bomb) {
-      const s = r * 2; // mesmo tamanho da bomba desenhada (~72% do tile), pulsando junto
-      ctx.drawImage(A.bomb, cx - r, cy - r, s, s);
+    if (pierce && !A.bombPierce) { // sem sprite próprio: espetos desenhados em volta da bomba
+      ctx.fillStyle = "#cfd8e8"; ctx.strokeStyle = "#1b2433"; ctx.lineWidth = 1.5;
+      for (let k = 0; k < 8; k++) {
+        const a = (Math.PI / 4) * k;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a - 0.2) * r * 0.95, cy + Math.sin(a - 0.2) * r * 0.95);
+        ctx.lineTo(cx + Math.cos(a) * (r + 7), cy + Math.sin(a) * (r + 7));
+        ctx.lineTo(cx + Math.cos(a + 0.2) * r * 0.95, cy + Math.sin(a + 0.2) * r * 0.95);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
+    if (power && !A.bombPower) { ctx.strokeStyle = "#ff7a1a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r + 5 + 2 * Math.sin(now / 120), 0, 7); ctx.stroke(); } // super bomba
+    if (sheet) {
+      const s = r * 2; // o maior quadro ocupa ~84% do tile; os menores mantêm a proporção, centrados e com a base alinhada
+      // quadros em vai-e-vem (0,1,2,1,0,...) como no jogo original, contados desde que a bomba foi solta (1ª bomba: pavio de 2 s);
+      // a bomba de controle remoto não tem pavio, então usa o relógio da tela
+      const n = sheet.rects.length, cycle = n > 1 ? 2 * n - 2 : 1, el_ = remote ? now / 1000 : Math.max(0, BOMB_FUSE - t);
+      const k0 = Math.floor(el_ * sheet.fps) % cycle, q = sheet.rects[k0 < n ? k0 : cycle - k0];
+      const k = s / sheet.maxDim, dw = q.sw * k, dh = q.sh * k;
+      ctx.drawImage(sheet.img, q.sx, q.sy, q.sw, q.sh, cx - dw / 2, cy + r - dh, dw, dh);
       if (remote) { ctx.strokeStyle = "#4aa8ff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, 7); ctx.stroke(); } // bomba do controle remoto
       continue;
     }
@@ -903,6 +1313,15 @@ function drawBombs(bombs, now) {
   }
 }
 
+function drawDeath(v, now) {
+  const f = Math.floor(((now - v.deadAt) / 1000) * A.death.fps);
+  if (f >= A.death.n) { v.deadAt = undefined; return; }
+  const w = TILE * A.death.scale, h = (w * A.death.img.height) / A.death.fw;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(A.death.img, f * A.death.fw, 0, A.death.fw, A.death.img.height, v.x * TILE - w / 2, (v.y + 0.5) * TILE - h, w, h); // base da animação nos pés
+  ctx.imageSmoothingEnabled = !A.pixelArt;
+}
+
 function drawPlayers(players, dt, now) {
   const k = 1 - Math.exp(-dt * 25);
   for (const p of players) {
@@ -911,7 +1330,13 @@ function drawPlayers(players, dt, now) {
     const moving = Math.hypot(p.x - v.x, p.y - v.y) > 0.01;
     v.x += (p.x - v.x) * k;
     v.y += (p.y - v.y) * k;
-    if (!p.alive) continue;
+    if (!p.alive) {
+      if (v.wasAlive && A.death) v.deadAt = now;
+      v.wasAlive = false;
+      if (v.deadAt !== undefined) drawDeath(v, now);
+      continue;
+    }
+    v.wasAlive = true; v.deadAt = undefined;
     const cx = v.x * TILE, cy = v.y * TILE;
     if (p.invuln && Math.floor(now / 90) % 2) continue; // pisca ao tomar dano
     if (p.shield) {
@@ -958,7 +1383,7 @@ function frame(now) {
     ctx.imageSmoothingEnabled = !A.pixelArt; // drawCharacter muda isso por skin; sem voltar, powerups e bomba saíam borrados
     drawFloor(st, ts);
     drawSpecials(S.specials || [], now);
-    drawGrid(S.grid, st, ts);
+    drawGrid(S.grid, st, ts, now);
     drawItems(S.items, now);
     drawFlames(S.flames);
     drawWarns(S.warn || [], now);
@@ -981,6 +1406,10 @@ function init() {
   sizeCanvas();
 
   $("btnSkin").onclick = () => { buildSkinGrid(); show("skin"); };
+  const toggleRanking = (open) => $("rankPanel").classList.toggle("hidden", open === undefined ? !$("rankPanel").classList.contains("hidden") : !open);
+  $("btnRanking").onclick = () => toggleRanking();
+  $("rankClose").onclick = () => toggleRanking(false);
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && screen === "title") toggleRanking(false); });
   $("upFile").onchange = async () => {
     const f = $("upFile").files[0];
     upload = null;
@@ -992,7 +1421,7 @@ function init() {
   $("upCancel").onclick = closeUpload;
   $("upSend").onclick = () => {
     const owner = $("playerName").value.trim();
-    if (!owner) { toast("Digite seu nome na tela inicial antes de enviar uma skin."); return; }
+    if (!owner) { toast("Digite seu nome acima antes de enviar uma skin."); return; }
     if (!upload) { toast("Escolha uma imagem primeiro."); return; }
     if (upload.url.length > 690000) { toast("Imagem grande demais (máximo 512 KB)."); return; }
     if (!ws || ws.readyState !== WebSocket.OPEN) { toast("Sem conexão com o servidor. Aguarde reconectar e tente de novo."); return; }
@@ -1030,7 +1459,8 @@ function init() {
     send({ t: "create", room: f.room.value, map: f.map.value, rounds: f.rounds.value, time: f.time.value, events: f.events.value, sd_var: f.sd_var.value, ...p });
     $("createForm").classList.add("hidden"); $("createConfirm").classList.add("hidden"); $("btnCreate").classList.remove("hidden");
   };
-  $("playerName").onkeydown = (e) => { if (e.key === "Enter") $("btnMulti").click(); };
+  $("playerName").onkeydown = (e) => { if (e.key === "Enter") $("skinBack").click(); }; // o nome fica em Personagens: Enter confirma e volta ao menu
+  $("playerName").oninput = () => { try { localStorage.setItem("ctib-name", $("playerName").value.trim()); } catch { /* ignore */ } };
   $("addBotBtn").onclick = () => send({ t: "addbot" });
   $("rmBotBtn").onclick = () => send({ t: "rmbot" });
   $("chatForm").onsubmit = (e) => {

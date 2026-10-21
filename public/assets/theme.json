@@ -7,6 +7,48 @@
     "block": null
   },
   "maps": {},
+  "tilesets": {
+    "dir": "tilesets",
+    "themes": [
+      "grama",
+      "deserto",
+      "gelo",
+      "industrial",
+      "vulcao",
+      "cristal",
+      "magico",
+      "masmorra",
+      "fortaleza"
+    ],
+    "maps": {
+      "classic": "grama",
+      "big": "grama",
+      "maze": "grama",
+      "bastions": "grama",
+      "columns": "grama",
+      "rings": "grama",
+      "grid3": "grama",
+      "converge": "grama",
+      "teleport": "grama",
+      "river": "grama",
+      "open": "grama",
+      "arena": "deserto",
+      "walls": "deserto",
+      "cross": "gelo",
+      "ice": "gelo",
+      "ice_stripes": "gelo",
+      "factory": "industrial",
+      "belt": "industrial",
+      "belts_parallel": "industrial",
+      "towers": "industrial",
+      "volcano": "vulcao",
+      "lava": "vulcao",
+      "diamond": "cristal",
+      "portals": "magico",
+      "chambers": "masmorra",
+      "fortress": "fortaleza"
+    }
+  },
   "items": {
     "bomb_up": "powerups/bomb_up.webp",
     "fire_up": "powerups/fire_up.webp",
@@ -22,10 +64,35 @@
     "heart": "powerups/heart.webp",
     "skull": "powerups/skull.webp",
     "line_bomb": "powerups/line_bomb.webp",
-    "power_bomb": "powerups/power_bomb.webp"
+    "power_bomb": "powerups/power_bomb.webp",
+    "pierce_bomb": "powerups/pierce_bomb.webp"
   },
-  "bomb": "bomb.webp",
-  "flame": null,
+  "bombs": {
+    "normal": {
+      "image": "bombs/bomb.png",
+      "frames": 3,
+      "fps": 7
+    },
+    "power": {
+      "image": "bombs/power_bomb.png",
+      "frames": 3,
+      "fps": 7
+    },
+    "pierce": {
+      "image": "bombs/pierce_bomb.png",
+      "frames": 3,
+      "fps": 7
+    }
+  },
+  "death": {
+    "image": "effects/death.png",
+    "frames": 8,
+    "fps": 9
+  },
+  "flame": {
+    "image": "effects/explosion.png",
+    "grid": 7
+  },
   "skins": [
     {
       "name": "Bomberman",

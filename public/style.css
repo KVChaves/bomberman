@@ -96,6 +96,7 @@ button.kick:active { transform: translateY(1px); box-shadow: 0 1px 0 #5a160b; }
 
 /* menu da tela inicial: canto superior esquerdo, compacto */
 .title-menu { position: absolute !important; top: 16px; left: 16px; width: 214px; display: flex; flex-direction: column; gap: 10px; z-index: 2; }
+.title-menu.menu-sign { width: min(236px, 92vw); aspect-ratio: 118 / 137; display: block; background: url("assets/ui/menu.png") center / 100% 100% no-repeat; image-rendering: pixelated; filter: drop-shadow(0 10px 18px rgba(0,0,0,.55)); }
 .title-menu input { padding: 9px 12px; font-size: 14px; }
 .menu { display: flex; flex-direction: column; gap: 9px; }
 .menu button { font-family: var(--display); font-weight: 400; letter-spacing: 1px; font-size: 15px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; text-align: left; }
@@ -315,7 +316,7 @@ th { font-size: 12px; }
 #overlay.clear { background: none; backdrop-filter: none; justify-content: flex-start; padding-top: 22px; pointer-events: none; }
 
 /* ranking sempre visível na tela inicial */
-#rankPanel { position: absolute !important; top: 16px; left: 246px; width: min(460px, calc(100vw - 262px)); max-height: min(310px, calc(100vh - 32px)); z-index: 2; display: flex; flex-direction: column; padding: 12px 16px; background: linear-gradient(180deg, rgba(74,47,27,.94), rgba(53,33,15,.94)); }
+#rankPanel { position: absolute !important; top: 16px; left: 268px; width: min(460px, calc(100vw - 284px)); max-height: min(310px, calc(100vh - 32px)); z-index: 2; display: flex; flex-direction: column; padding: 12px 16px; background: linear-gradient(180deg, rgba(74,47,27,.94), rgba(53,33,15,.94)); }
 #rankPanel h2 { margin-bottom: 6px; }
 #rankPanel .note { margin-top: 8px; font-size: 11px; }
 #rankPanel .rank-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #8a5a2e transparent; }
@@ -354,7 +355,7 @@ main > #chat #chatForm { flex-direction: column; }
 
 /* barra superior única: tempo, rodada e poderes numa faixa de madeira, igual aos demais painéis */
 #topBar { display: flex; align-items: stretch; gap: 12px; min-height: 64px; }
-#topBar #timeInfo, #topBar #roundInfo, #topBar #myPowers { padding: 4px 18px; border-radius: 14px; min-height: 64px; box-sizing: border-box;
+#topBar #timeInfo, #topBar #roundInfo, #myPowers { padding: 4px 18px; border-radius: 14px; min-height: 64px; box-sizing: border-box;
   background: linear-gradient(180deg, var(--wood2), var(--wood)); border: 2px solid #1a0f08;
   box-shadow: inset 0 0 0 2px rgba(245,184,46,.12), 0 8px 20px rgba(0,0,0,.4); }
 #topBar #timeInfo, #topBar #roundInfo { display: flex; align-items: center; justify-content: center; gap: 16px; flex: none; color: #fff; }
@@ -368,18 +369,16 @@ main > #chat #chatForm { flex-direction: column; }
 #topBar #roundInfo .rnd { font-family: "Courier New", monospace; font-size: 36px; font-weight: 900; line-height: 1; letter-spacing: 2px; white-space: nowrap;
   color: #ffd84a; -webkit-text-stroke: 1px #000; text-shadow: 3px 3px 0 #000; font-variant-numeric: tabular-nums; }
 #topBar #roundInfo .rnd.tie { color: #ffd84a; font-size: 22px; letter-spacing: 1px; }
-#topBar #myPowers { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; gap: 4px 6px; }
+#myPowers { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; gap: 4px 6px; }
 #myPowers .pw.off { opacity: .5; }
 @media (max-width: 720px) {
-  #topBar { flex-wrap: wrap; }
-  #myPowers { order: 3; flex-basis: 100%; }
 }
 
 /* chat e painel direito acompanham a altura da barra superior + mapa: grade com 3 colunas; chat e painel não aumentam a linha (height 0 + min-height 100%) */
 @media (min-width: 1000px) {
   #screen-game main { display: grid; grid-template-columns: 260px auto 350px; grid-template-rows: auto auto; gap: 12px 18px; justify-content: center; align-items: start; }
   #playCol { display: contents; }
-  #topBar { grid-column: 2; grid-row: 1; }
+  #myPowers { grid-column: 2; grid-row: 1; }
   #stage { grid-column: 2; grid-row: 2; }
   main > #chat { grid-column: 1; grid-row: 1 / 3; align-self: stretch; height: 0; min-height: 100%; max-height: none; overflow: hidden; }
   #hud { grid-column: 3; grid-row: 1 / 3; align-self: stretch; height: 0; min-height: 100%; width: auto; min-width: 0; }
@@ -389,3 +388,171 @@ main > #chat #chatForm { flex-direction: column; }
   #hud #legend summary { position: sticky; top: 0; z-index: 1; background: var(--wood2); }
   #hud #scoreTable { flex: none; }
 }
+
+/* menu: placa de madeira (assets/ui/menu.png, 118x137) com quatro áreas clicáveis sobre os botões desenhados na imagem */
+.menu-sign button { position: absolute; left: 16.95%; width: 66.1%; height: 9.49%; padding: 0; margin: 0; border: 0; border-radius: 3px; background: transparent; box-shadow: none; transition: background .12s; }
+.menu-sign button:hover { transform: none; background: rgba(255,248,220,.16); box-shadow: inset 0 0 0 2px rgba(255,248,220,.55); }
+.menu-sign button:active { transform: translateY(1px); background: rgba(0,0,0,.14); }
+#btnSingle { top: 30.66%; }
+#btnMulti { top: 43.07%; }
+#btnSkin { top: 55.47%; }
+#btnRanking { top: 67.88%; }
+.menu-sign button:focus-visible { outline: 3px solid rgba(255,248,220,.9); outline-offset: 2px; }
+/* nome do jogador, dentro de Personagens */
+#nameRow { display: flex; align-items: center; gap: 12px; padding: 10px 14px; width: min(320px, 92vw); }
+#nameRow input { flex: 1; min-width: 0; padding: 9px 12px; font-size: 15px; }
+#nameRow canvas { flex: none; }
+
+/* ranking: tábua de madeira (assets/ui/ranking.png, 840x540); o conteúdo fica na área útil dentro das bordas e do prego dos cantos */
+#rankPanel { width: min(500px, calc(100vw - 328px)); max-height: none; aspect-ratio: 840 / 540; box-sizing: border-box; padding: 6% 6.5% 5.5%;
+  background: url("assets/ui/ranking.png") center / 100% 100% no-repeat; image-rendering: pixelated; border: 0; border-radius: 0; box-shadow: none;
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,.55)); }
+#rankPanel > * { image-rendering: auto; }
+#rankPanel h2 { color: #fff3d6; font-size: 17px; margin-bottom: 4px; text-shadow: 0 2px 0 #3b1f0c, 0 0 6px rgba(59,31,12,.7); }
+#rankPanel h2::after { background: linear-gradient(90deg, rgba(59,31,12,.7), transparent); }
+#rankPanel .rank-scroll { scrollbar-color: #5a3112 transparent; }
+#rankPanel table { color: #fff3d6; text-shadow: 0 1px 0 #3b1f0c; }
+#rankPanel th { color: #3b1f0c; text-shadow: 0 1px 0 rgba(255,225,170,.35); font-size: 11px; }
+#rankPanel td { border-top: 1px solid rgba(59,31,12,.4); }
+#rankPanel tbody tr:nth-child(even) td { background: rgba(59,31,12,.2); }
+#rankPanel tbody tr:hover td { background: rgba(255,225,130,.16); }
+#rankPanel #historyTable tbody tr:first-child td { color: #ffe14d; }
+#rankPanel #historyTable tr.me td { box-shadow: none; }
+#rankPanel #historyTable tr.me td:first-child { box-shadow: inset 3px 0 0 #ffe14d; }
+#rankPanel td { padding: 3px 7px; }
+#rankPanel td.medal { font-size: 13px; }
+@media (max-width: 720px) { #rankPanel { width: min(500px, 94vw); max-height: none; } }
+
+/* ranking: tabela compacta que cabe inteira na tábua (sem rolagem horizontal) */
+#rankPanel { width: min(540px, calc(100vw - 328px)); padding: 5.5% 6% 5%; }
+#rankPanel h2 { font-size: 18px; margin-bottom: 2px; flex: none; }
+#rankPanel .rank-scroll { overflow-x: hidden; overflow-y: auto; padding-right: 4px; }
+#rankPanel table { table-layout: fixed; font-size: 12.5px; }
+#rankPanel th, #rankPanel td { padding: 4px 3px; overflow: hidden; text-overflow: ellipsis; }
+#rankPanel th { font-size: 10.5px; letter-spacing: .3px; }
+#rankPanel th:nth-child(1), #rankPanel td:nth-child(1) { width: 28px; text-align: center; padding-left: 0; padding-right: 0; }
+#rankPanel th:nth-child(2), #rankPanel td:nth-child(2) { width: auto; max-width: none; text-align: left; padding-left: 8px; }
+#rankPanel th.num, #rankPanel td.num { text-align: center; }
+#rankPanel th:nth-child(3), #rankPanel td:nth-child(3) { width: 42px; }
+#rankPanel th:nth-child(4), #rankPanel td:nth-child(4) { width: 50px; }
+#rankPanel th:nth-child(5), #rankPanel td:nth-child(5) { width: 38px; }
+#rankPanel th:nth-child(6), #rankPanel td:nth-child(6) { width: 40px; }
+#rankPanel th:nth-child(7), #rankPanel td:nth-child(7) { width: 44px; }
+#rankPanel th:nth-child(8), #rankPanel td:nth-child(8) { width: 46px; }
+#rankPanel td.medal { font-size: 14px; width: 28px; }
+#rankPanel thead th { position: sticky; top: 0; z-index: 1; background: rgba(176,96,40,.92); }
+
+/* ranking só aparece quando o botão do menu é clicado */
+#rankPanel { left: 268px; width: min(590px, calc(100vw - 284px)); }
+.rank-close { position: absolute; top: 5.5%; right: 4%; z-index: 2; width: 26px; height: 26px; padding: 0; display: grid; place-items: center; font-size: 13px; line-height: 1; border-radius: 8px; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.5);
+  background: linear-gradient(#f0705a, #b83a26); border: 1.5px solid #5a160b; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 2px 0 #5a160b; }
+.rank-close:active { transform: translateY(1px); box-shadow: 0 1px 0 #5a160b; }
+/* nomes completos (até 12 letras) no ranking e na tabela de pontos da partida */
+#rankPanel td:nth-child(2) { overflow: visible; text-overflow: clip; white-space: nowrap; }
+#scoreTable th:nth-child(1) { width: 178px; }
+#scoreTable td:first-child { overflow: visible; text-overflow: clip; }
+#scoreTable td:first-child .avatar { vertical-align: middle; margin-right: 6px; }
+@media (max-width: 720px) { #rankPanel { width: min(590px, 94vw); } }
+
+/* configuração da partida em lista vertical: uma opção por linha (nome à esquerda, seletor à direita) */
+.form, #roomSettings { grid-template-columns: 1fr; gap: 8px; align-items: stretch; }
+.form label, #roomSettings label { flex-direction: row; align-items: center; justify-content: space-between; gap: 14px; }
+.form label select, .form label input, #roomSettings label select { width: 55%; flex: none; }
+.panel.form { width: min(420px, 92vw); }
+#roomSettings { max-width: 420px; margin: 0 auto; }
+
+/* ===== tema escuro da partida (assets/ui): painéis, moldura do mapa, botões, corações e caveira ===== */
+#screen-game #topBar #timeInfo, #screen-game #topBar #roundInfo, #screen-game #myPowers,
+#screen-game #chat, #screen-game #scoreTable, #screen-game #legend, #screen-game .panel {
+  border: 12px solid transparent; border-image: url("assets/ui/painel.png") 8 / 12px round; border-radius: 0;
+  background: #1e1e1e url("assets/ui/textura_painel.png") repeat; background-size: 72px 72px; background-clip: padding-box;
+  image-rendering: pixelated; box-shadow: none; filter: drop-shadow(0 8px 12px rgba(0,0,0,.5)); color: #c8c8c8;
+}
+#screen-game #topBar #timeInfo, #screen-game #topBar #roundInfo, #screen-game #myPowers { min-height: 76px; padding: 0 10px; box-sizing: border-box; }
+#screen-game #scoreTable { border-collapse: separate; }
+#screen-game #legend { padding: 0; }
+#screen-game #legend summary { background: #1e1e1e; color: #e8d8d8; }
+#screen-game #hud #legend summary { background: #1e1e1e; }
+#screen-game #chat { padding: 4px 6px; }
+#screen-game .panel { padding: 8px 10px; }
+#screen-game th { color: #a89c9c; }
+#screen-game td { border-top-color: rgba(255,255,255,.07); }
+#screen-game tbody tr:nth-child(even) td { background: rgba(0,0,0,.18); }
+/* moldura do mapa */
+#screen-game canvas#game { border: 12px solid transparent; border-image: url("assets/ui/painel.png") 8 / 12px round; border-radius: 0; box-shadow: none; image-rendering: auto;
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,.6)); }
+#screen-game #overlay { inset: 12px; }
+/* botões: vermelho (principal) e cinza (secundário), com versão pressionada */
+#screen-game button:not(.kick):not(.rank-close) {
+  border-style: solid; border-width: 2px 2px 6px 2px; border-radius: 0; border-color: transparent;
+  border-image: url("assets/ui/botao_vermelho.png") 1 1 3 1 fill / 2px 2px 6px 2px stretch; background: none; box-shadow: none; image-rendering: pixelated;
+  color: #c8c8c8; text-shadow: 0 1px 0 #000; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; padding: 6px 16px; transform: none; transition: none;
+}
+#screen-game button:not(.kick):not(.rank-close):hover { filter: brightness(1.15); transform: none; }
+#screen-game button:not(.kick):not(.rank-close):active { border-width: 6px 2px 4px 2px; border-image-source: url("assets/ui/botao_vermelho_pressionado.png"); border-image-slice: 3 1 2 1 fill; transform: none; box-shadow: none; }
+#screen-game button.ghost { border-image-source: url("assets/ui/botao_cinza.png"); }
+#screen-game button.ghost:active { border-image-source: url("assets/ui/botao_cinza_pressionado.png"); }
+#leaveBtn2 { width: 100%; }
+/* corações (vidas extras) e caveira (eliminado) */
+.icone-vida, .icone-morto { display: inline-block; vertical-align: middle; image-rendering: pixelated; background-repeat: no-repeat; background-position: center; background-size: contain; }
+.icone-vida { width: 18px; height: 15px; margin-right: 2px; background-image: url("assets/ui/coracao_cheio.png"); }
+.icone-vida.meio { background-image: url("assets/ui/coracao_meio.png"); }
+.icone-vida.vazio { background-image: url("assets/ui/coracao_vazio.png"); }
+.icone-morto { width: 20px; height: 21px; margin-right: 4px; background-image: url("assets/ui/caveira.png"); }
+#screen-game button.ghost:not(.kick):not(.rank-close) { border-image-source: url("assets/ui/botao_cinza.png"); }
+#screen-game button.ghost:not(.kick):not(.rank-close):active { border-image-source: url("assets/ui/botao_cinza_pressionado.png"); }
+/* campos de texto e seletores escuros */
+#screen-game input, #screen-game select { background: #262626; color: #d4d4d4; border: 2px solid #4a1a1a; border-radius: 0; box-shadow: inset 0 2px 0 rgba(0,0,0,.4); }
+#screen-game input::placeholder { color: #8a8080; }
+
+/* ---------- responsividade ---------- */
+html { -webkit-text-size-adjust: 100%; }
+canvas#game { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); width: auto; touch-action: none; }
+#screen-game canvas#game { object-fit: contain; }
+button, .skin { touch-action: manipulation; }
+
+/* controles na tela (celular/tablet): analógico à esquerda, ações à direita */
+#touch { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: none; justify-content: space-between; align-items: flex-end; pointer-events: none;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+body.in-game #touch:not(.hidden) { display: flex; }
+#stick, #touchBtns { pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+#stick { position: relative; width: 132px; height: 132px; border-radius: 50%; background: rgba(20,10,4,.45); border: 2px solid rgba(255,220,160,.35); }
+#knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffd98a, #b8742a); border: 2px solid #1a0f08; box-shadow: 0 4px 10px rgba(0,0,0,.5); transition: transform .06s; }
+#touchBtns { display: grid; grid-template-columns: auto auto; gap: 10px; justify-items: end; align-items: end; }
+#touchBtns button { min-width: 64px; min-height: 52px; padding: 8px 14px; font-size: 14px; opacity: .92; }
+#touchBtns #tBomb { grid-column: 1 / 3; width: 112px; height: 112px; border-radius: 50%; font-size: 18px; justify-self: end; }
+body.in-game.touch-ui main { padding-bottom: 170px; }
+body.in-game.touch-ui canvas#game { max-height: calc(100dvh - 330px); }
+
+@media (max-width: 720px) {
+  #screen-game { padding-top: 8px; }
+  #msg { font-size: 26px; }
+  #msg.count { font-size: 72px; }
+  #topBar #timeInfo .clock, #topBar #roundInfo .rnd { font-size: 24px; }
+  #topBar #timeInfo, #topBar #roundInfo { gap: 8px; padding: 4px 10px; min-height: 48px; }
+  #myPowers { min-height: 0; }
+  .clock-ico { width: 32px; height: 32px; }
+  #lobbyBox { max-width: 100%; }
+  #roomSettings { grid-template-columns: repeat(2, 1fr); }
+  canvas#game { max-height: none; }
+  #overlay { padding: 8px; gap: 8px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  canvas#game { max-height: calc(100dvh - 20px); }
+  body.in-game.touch-ui canvas#game { max-height: calc(100dvh - 20px); }
+  body.in-game.touch-ui main { padding-bottom: 0; }
+}
+
+/* tempo e rodada no topo do painel lateral, poderes abaixo da tabela (crescem empurrando a legenda) */
+#topBar #timeInfo, #topBar #roundInfo { flex: 1; min-width: 0; gap: 8px; padding: 0 8px; }
+#topBar #timeInfo .clock, #topBar #roundInfo .rnd { font-size: 28px; }
+#topBar #timeInfo .sd { font-size: 18px; }
+#topBar .lbl { font-size: 14px; }
+.clock-ico { width: 34px; height: 34px; }
+/* barra de poderes em cima do mapa, de altura fixa: com muitos poderes/maldição os ícones e o texto encolhem (--pws, ajustado em fitPowers()) em vez de a barra crescer */
+#myPowers { --pws: 1; flex: none; height: 76px; overflow: hidden; gap: calc(4px * var(--pws)) calc(6px * var(--pws)); justify-content: center; align-items: center; align-content: center; }
+#myPowers .pw, #myPowers .curse { font-size: calc(14px * var(--pws)); padding: calc(3px * var(--pws)) calc(9px * var(--pws)) calc(3px * var(--pws)) calc(5px * var(--pws)); gap: calc(4px * var(--pws)); }
+#myPowers .pw-img { width: calc(30px * var(--pws)); height: calc(30px * var(--pws)); }
+#playCol > #myPowers { padding: 0 10px; }
+@media (max-width: 720px) { #myPowers { height: auto; min-height: 48px; max-height: 76px; } }

@@ -1,4 +1,21 @@
+# Python
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Dados de execução (ranking e skins enviadas pelos jogadores)
 data/
-_arquivo/
+
+# Segredos e configuração local
+.env
+.env.*
+
+# Arquivos locais, fora do repositório (referências, fontes de arte, rascunhos)
+_local/
+
+# Editores e sistema
+.vscode/
+.idea/
 *~
+.DS_Store

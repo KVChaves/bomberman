@@ -4,10 +4,10 @@ Bomberman para até 6 jogadores na mesma rede. Só o anfitrião precisa do Pytho
 
 ## Como jogar
 1. No PC do anfitrião (Linux ou Windows):
-   - Linux: `python3 server.py`
-   - Windows: `py server.py` (ou `python server.py`)
+   - Linux: `python3 server/server.py`
+   - Windows: `py server/server.py` (ou `python server/server.py`)
 2. O terminal mostra os endereços, ex.: `http://192.168.0.10:8000`. Todos abrem esse endereço no navegador.
-3. Na tela inicial digite o nome e escolha **Singleplayer**, **Multiplayer** ou **Mudar skin**.
+3. Na tela inicial digite o nome e escolha **Singleplayer**, **Multiplayer**, **Personagens** ou **Ranking**.
 
 Se os amigos não conseguirem conectar, libere a porta 8000 (TCP) no firewall do anfitrião. Outra porta: `--port 9000`.
 
@@ -49,14 +49,26 @@ Também dá para colocar imagens direto na pasta `data/skins/`: elas viram skins
 Coloque as imagens nas subpastas de `public/assets/` (`powerups/`, `skins/`, `backgrounds/`, `fonts/`) e aponte para elas em `public/assets/theme.json`. Dá F5 e pronto, sem reiniciar o servidor. Detalhes e formato de spritesheet em [public/assets/LEIAME.md](public/assets/LEIAME.md).
 
 ## Publicar online (Vercel)
-A Vercel não roda WebSocket, então o site (`public/`) vai para a Vercel e o servidor de jogo (`server.py`, via
-`Dockerfile`) para outra hospedagem. Passo a passo em [DEPLOY.md](DEPLOY.md); o endereço do servidor fica em
+A Vercel não roda WebSocket, então o site (`public/`) vai para a Vercel e o servidor de jogo (`server/server.py`, via
+`Dockerfile`) para outra hospedagem. Passo a passo em [docs/DEPLOY.md](docs/DEPLOY.md); o endereço do servidor fica em
 [public/config.js](public/config.js).
 
-## Estrutura
-- `server.py`: HTTP + WebSocket, salas e histórico. Variáveis: `PORT`, `HOST`, `ALLOWED_ORIGINS`, `HISTORY_FILE`, `SKINS_DIR`.
-- `game.py`: regras de uma sala (rodadas, bombas, powerups, morte súbita, pontos).
-- `maps.py`: mapas. `bots.py`: IA dos bots.
-- `_arquivo/`: arquivos guardados que o jogo não usa (fora de `public/`, o servidor não os entrega).
-- `Dockerfile`, `vercel.json`, `.vercelignore`: publicação (veja DEPLOY.md).
-- `public/`: cliente (`game.js` tem as telas e as funções `draw*` do canvas, ponto de partida para as animações).
+## Estrutura do repositório
+```
+server/      servidor Python (só biblioteca padrão)
+  server.py    HTTP + WebSocket, salas, ranking e skins enviadas. Variáveis: PORT, HOST, ALLOWED_ORIGINS, HISTORY_FILE, SKINS_DIR
+  game.py      regras de uma sala (rodadas, bombas, powerups, morte súbita, pontos)
+  maps.py      mapas e geração da arena
+  bots.py      IA dos bots
+public/      cliente (vai para a Vercel)
+  index.html, style.css, game.js, config.js
+  assets/      imagens e tema (veja assets/LEIAME.md)
+    bombs/ effects/ ui/ powerups/ skins/ tilesets/ backgrounds/ fonts/   theme.json
+scripts/     utilitários (migrar_supabase.py: sobe ranking e skins locais para o Supabase)
+supabase/    schema.sql (tabela do ranking e das skins)
+docs/        DEPLOY.md (publicação online)
+Dockerfile, render.yaml, vercel.json   publicação
+data/        ranking e skins gerados ao jogar (não versionado)
+_local/      arquivos locais, fora do git (referências e fontes de arte)
+```
+Não há dependências para instalar: o servidor usa só a biblioteca padrão do Python 3.8+.
