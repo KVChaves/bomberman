@@ -65,7 +65,8 @@
     "skull": "powerups/skull.webp",
     "line_bomb": "powerups/line_bomb.webp",
     "power_bomb": "powerups/power_bomb.webp",
-    "pierce_bomb": "powerups/pierce_bomb.webp"
+    "pierce_bomb": "powerups/pierce_bomb.webp",
+    "search_bomb": "powerups/search_bomb.webp"
   },
   "bombs": {
     "normal": {
@@ -81,6 +82,12 @@
     "pierce": {
       "image": "bombs/pierce_bomb.png",
       "frames": 3,
+      "fps": 7
+    },
+    "search": {
+      "image": "bombs/search_bomb.png",
+      "frames": 4,
+      "frameWidth": 221,
       "fps": 7
     }
   },

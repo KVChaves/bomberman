@@ -37,7 +37,7 @@ Formatos: PNG, SVG, GIF (sem animar), WebP. Ideal: imagens quadradas; são estic
 | `maps` | visual específico de um mapa, ex.: `"maps": { "volcano": { "tiles": { "floor": ["tiles/lava.png"], "wall": "tiles/rocha.png" } } }` (o que faltar usa `tiles`) |
 | `tilesets` | temas de tiles por pasta: `{ "dir": "tilesets", "themes": ["grama", ...], "maps": { "classic": "grama", ... } }`. Cada tema tem `parede` (borda), `inquebravel` (pilares), `quebravel`, `piso_a`, `piso_b` e `piso_decorado`; as mecânicas (`agua`, `escorregadio`, `esteira`, `lava`, `portal`) ficam em um tema só e valem para qualquer mapa. Tem prioridade sobre `tiles` e `maps` |
 | `items.<tipo>` | imagem de cada powerup (lista abaixo) |
-| `bombs` | sprites das bombas: `normal`, `power` (super bomba) e `pierce` (perfurante). Cada um é um arquivo (`"bombs/bomb.webp"`) ou um spritesheet em uma linha: `{ "image": "bombs/bomb.png", "frames": 3, "fps": 7 }`. Os quadros são achados pela transparência (podem ter tamanhos diferentes); se a contagem não bater, usa grade uniforme com `frameWidth` e `gap`. Os quadros tocam em vai-e-vem (0,1,2,1,0…) desde que a bomba é solta. Sem `power` e `pierce`, o jogo desenha um anel laranja e espetos por cima da bomba normal. A chave antiga `bomb` (só a bomba normal) ainda vale |
+| `bombs` | sprites das bombas: `normal`, `power` (super bomba), `pierce` (perfurante) e `search` (bomba de busca: quadros 0 a 2 parada, quadro 3 perseguindo). Cada um é um arquivo (`"bombs/bomb.webp"`) ou um spritesheet em uma linha: `{ "image": "bombs/bomb.png", "frames": 3, "fps": 7 }`. Os quadros são achados pela transparência (podem ter tamanhos diferentes); se a contagem não bater, usa grade uniforme com `frameWidth` e `gap`. Os quadros tocam em vai-e-vem (0,1,2,1,0…) desde que a bomba é solta. Sem `power` e `pierce`, o jogo desenha um anel laranja e espetos por cima da bomba normal. A chave antiga `bomb` (só a bomba normal) ainda vale |
 | `flame` | chama da explosão: uma imagem para todas as casas (`"flame.png"`) ou um atlas por direção `{ "image": "effects/explosion.png", "grid": 7 }`. No atlas, a grade `grid`×`grid` tem as peças: centro `[3,3]`, trechos de braço horizontais `h` (`[2,3]`,`[4,3]`) e verticais `v` (`[3,2]`,`[3,4]`), escolhidos por casa, e as pontas de 1 casa `left` `[1,3]`, `right` `[5,3]`, `up` `[3,1]`, `down` `[3,5]`; o campo opcional `parts` troca as células de `[coluna, linha]` de cada peça. Os bulbos largos com asas das extremidades do atlas não são usados. O servidor diz a cada casa quais lados continuam em chamas, e o cliente escolhe a peça |
 | `skins` | lista de skins de personagem (quantas quiser) — cada jogador escolhe a sua em **Mudar skin** |
 
@@ -48,7 +48,7 @@ Ids dos mapas: `classic`, `arena`, `cross`, `factory`, `diamond`, `volcano`, `bi
 `bomb_up` (+1 bomba), `fire_up` (+1 alcance), `speed_up` (velocidade), `full_fire` (alcance máximo),
 `remote` (controle remoto), `bomb_pass` (atravessa bombas), `wall_pass` (atravessa blocos),
 `kick` (chuta bombas), `glove` (luva: arremessa), `punch` (soco), `shield` (colete),
-`heart` (vida extra), `skull` (caveira/maldição), `line_bomb` (bombas em linha), `power_bomb` (super bomba), `pierce_bomb` (bomba perfurante).
+`heart` (vida extra), `skull` (caveira/maldição), `line_bomb` (bombas em linha), `power_bomb` (super bomba), `pierce_bomb` (bomba perfurante), `search_bomb` (bomba de busca).
 
 ## Skins de personagem
 

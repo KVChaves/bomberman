@@ -46,6 +46,7 @@ const ITEMS = {
   skull: ["#2d3436", "💀", "Caveira", "Maldição aleatória por 10 s (lento, rápido, sem bombas, bombas automáticas, controles invertidos…). Encoste em outro jogador para passá-la!"],
   line_bomb: ["#f39c12", "➡️", "Bombas em linha", "Solta todas as bombas de uma vez em linha"],
   pierce_bomb: ["#3b82c4", "🔱", "Bomba perfurante", "O fogo das suas bombas atravessa blocos e bombas; só as paredes o param"],
+  search_bomb: ["#2f3f8f", "🎯", "Bomba de busca", "Sua primeira bomba fica parada; quando um adversário chega a 3 casas ela o persegue e explode em cerca de 3 segundos. As seguintes são bombas comuns"],
   power_bomb: ["#6c5ce7", "☢️", "Super bomba", "Sua primeira bomba tem alcance máximo, mas só uma por vez: ela precisa explodir para a próxima aparecer"],
 };
 const ITEM_ALIAS = { bomb: "bomb_up", range: "fire_up", speed: "speed_up" }; // nomes antigos do theme.json
@@ -68,7 +69,7 @@ function sizeCanvas() { canvas.width = W * TILE; canvas.height = H * TILE; ctx.i
 
 // ---------- assets / tema (veja public/assets/LEIAME.md) ----------
 const BOMB_FUSE = 2.0; // mesmo valor do servidor: serve para animar a bomba desde que foi solta
-const A = { death: null, pixelArt: false, tileset: null, tilesets: { default: { floor: [], wall: null, block: null } }, items: {}, bomb: null, bombPower: null, bombPierce: null, flame: null, flameSheet: null };
+const A = { death: null, pixelArt: false, tileset: null, tilesets: { default: { floor: [], wall: null, block: null } }, items: {}, bomb: null, bombPower: null, bombPierce: null, bombSearch: null, flame: null, flameSheet: null };
 let SKINS = []; // skins do tema, pelo número: {color, sheet?}
 let CUSTOM = []; // skins enviadas pelos jogadores (lista do servidor): {id, file, name, owner}
 const customLoaded = {}; // id → skin pronta para desenhar
@@ -440,6 +441,7 @@ async function loadTheme() {
   A.bomb = await loadBombSheet(bombs.normal || t.bomb);
   A.bombPower = await loadBombSheet(bombs.power);
   A.bombPierce = await loadBombSheet(bombs.pierce);
+  A.bombSearch = await loadBombSheet(bombs.search);
   A.flame = typeof t.flame === "string" ? await loadImg(t.flame) : null; // imagem única para todas as casas em chamas
   A.flameSheet = t.flame && typeof t.flame === "object" ? await loadFlameSheet(t.flame) : null; // atlas com peças por direção
   const defs = t.skins || t.players || [];
@@ -1273,9 +1275,10 @@ function drawFlames(flames) {
 }
 
 function drawBombs(bombs, now) {
-  for (const [x, y, hop, t, , remote, power, pierce] of bombs) {
-    const cx = (x + 0.5) * TILE, cy = (y + 0.5) * TILE - hop * TILE * 0.9;
-    const sheet = (power && A.bombPower) || (pierce && A.bombPierce) || A.bomb; // super bomba e perfurante têm o seu próprio sprite
+  for (const [x, y, hop, t, , remote, power, pierce, search = 0] of bombs) {
+    const cx = (x + 0.5) * TILE;
+    let cy = (y + 0.5) * TILE - hop * TILE * 0.9;
+    const sheet = (search && A.bombSearch) || (power && A.bombPower) || (pierce && A.bombPierce) || A.bomb; // super bomba e perfurante têm o seu próprio sprite
     // com sprite, a animação são os próprios quadros; sem sprite, a bomba desenhada pulsa
     const r = sheet ? TILE * 0.42 : TILE * 0.36 * (1 + 0.08 * Math.sin(now / (!remote && t < 0.7 ? 40 : 120)));
     ctx.fillStyle = "rgba(0,0,0,.25)";
@@ -1297,7 +1300,13 @@ function drawBombs(bombs, now) {
       // quadros em vai-e-vem (0,1,2,1,0,...) como no jogo original, contados desde que a bomba foi solta (1ª bomba: pavio de 2 s);
       // a bomba de controle remoto não tem pavio, então usa o relógio da tela
       const n = sheet.rects.length, cycle = n > 1 ? 2 * n - 2 : 1, el_ = remote ? now / 1000 : Math.max(0, BOMB_FUSE - t);
-      const k0 = Math.floor(el_ * sheet.fps) % cycle, q = sheet.rects[k0 < n ? k0 : cycle - k0];
+      let k0 = Math.floor(el_ * sheet.fps) % cycle, i = k0 < n ? k0 : cycle - k0;
+      if (search && sheet === A.bombSearch && n >= 4) { // busca: parada = quadros 0..2 em vai-e-vem; perseguindo = último quadro (com o propulsor), tremendo
+        const m = n - 1, c2 = 2 * m - 2;
+        k0 = Math.floor((now / 1000) * sheet.fps) % c2; i = search === 2 ? m : k0 < m ? k0 : c2 - k0;
+        if (search === 2) cy += Math.sin(now / 35) * 1.5;
+      }
+      const q = sheet.rects[i];
       const k = s / sheet.maxDim, dw = q.sw * k, dh = q.sh * k;
       ctx.drawImage(sheet.img, q.sx, q.sy, q.sw, q.sh, cx - dw / 2, cy + r - dh, dw, dh);
       if (remote) { ctx.strokeStyle = "#4aa8ff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, 7); ctx.stroke(); } // bomba do controle remoto

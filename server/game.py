@@ -9,6 +9,7 @@ TICK = 1 / 30
 MAX_PLAYERS = 6
 
 BOMB_FUSE = 2.0
+SEARCH_RANGE, SEARCH_FUSE, SEARCH_IDLE, SEARCH_SPEED = 3, 3.0, 12.0, 3.2  # bomba de busca: raio (casas) que a aciona, pavio depois de acionada, espera parada e velocidade
 REMOTE_SAFETY = 8.0  # bomba remota explode sozinha depois disso
 FLAME_TIME = 0.5
 HALF = 0.4  # meia largura da hitbox, em tiles
@@ -33,7 +34,7 @@ SD_STYLES = {"spiral": "Morte súbita: o campo fecha em espiral!", "columns": "M
              "rows": "Morte súbita: paredes por cima e por baixo!", "rain": "Morte súbita: chuva de fogo!",
              "collapse": "Morte súbita: o chão está desabando!"}
 AIRDROP_KINDS = [k for k in ("bomb_up", "fire_up", "speed_up", "remote", "kick", "glove", "punch", "shield",
-                             "heart", "line_bomb", "power_bomb", "pierce_bomb")]
+                             "heart", "line_bomb", "power_bomb", "pierce_bomb", "search_bomb")]
 MAX_LIVES = 3
 SD_DELAY, SD_INTERVAL = 1.0, 0.2  # morte súbita
 PASS_COOLDOWN = 1.5  # depois de receber a caveira, não dá para devolvê-la logo
@@ -54,7 +55,7 @@ ITEM_WEIGHTS = {
     "bomb_up": 14, "fire_up": 14, "speed_up": 10, "full_fire": 2, "remote": 4,
     "bomb_pass": 3, "wall_pass": 3, "kick": 5, "glove": 4, "punch": 4,
     "shield": 3, "heart": 3, "skull": 6, "line_bomb": 3, "power_bomb": 3,
-    "pierce_bomb": 3,
+    "pierce_bomb": 3, "search_bomb": 3,
 }
 ITEM_KINDS = list(ITEM_WEIGHTS)
 CURSES = ["slow", "fast", "diarrhea", "constipation", "reverse", "short"]
@@ -93,6 +94,7 @@ class Player:
         self.pass_on = True  # passa-bomba ligado/desligado (CTRL): desligado, dá para chutar e socar bombas
         self.kick = self.glove = self.punch = self.line_bomb = False
         self.pierce_bomb = False  # bomba perfurante: o fogo atravessa blocos e bombas, só para nas paredes (não vale para a super bomba)
+        self.search_bomb = False  # bomba de busca: a primeira bomba solta persegue o primeiro adversário que chegar a 3 casas (a super bomba tem prioridade)
         self.power_bomb = False  # super bomba: a primeira bomba solta é MAX_RANGE, mas só uma por vez em campo
         self.lives = 0
         self.shield = False  # colete: imortal por SHIELD_TIME segundos
@@ -105,7 +107,7 @@ class Player:
         self.died_tick = 0
 
     def abilities(self):
-        return [k for k in ("remote", "bomb_pass", "wall_pass", "kick", "glove", "punch", "line_bomb", "power_bomb", "pierce_bomb")
+        return [k for k in ("remote", "bomb_pass", "wall_pass", "kick", "glove", "punch", "line_bomb", "power_bomb", "pierce_bomb", "search_bomb")
                 if getattr(self, k)]
 
 
@@ -117,6 +119,8 @@ class Bomb:
         self.remote = remote
         self.pierce = False  # perfurante: o fogo não para nos blocos
         self.power = False  # super bomba: enquanto ela não explode, o dono só solta bombas comuns
+        self.search = False  # bomba de busca: parada até um adversário chegar perto; aí persegue e explode em SEARCH_FUSE
+        self.hunt = None  # id do jogador perseguido (None = ainda parada)
         self.t = REMOTE_SAFETY if remote else BOMB_FUSE
         self.passers = passers  # jogadores que ainda podem atravessar (acabaram de soltá-la)
         self.done = False
@@ -554,6 +558,8 @@ class Room:
                 b.passers = {pid for pid in b.passers
                              if pid in self.players and self.players[pid].alive
                              and self.overlaps_tile(self.players[pid], b.x, b.y)}
+            if b.search and not b.fly:
+                self.search_step(b)
             b.t -= TICK
         due = [b for b in self.bombs if b.t <= 0 and not b.fly and not b.done]
         if due:
@@ -876,6 +882,8 @@ class Room:
             passers = {q.id for q in self.players.values() if q.alive and self.overlaps_tile(q, x, y)}
             b = Bomb(x, y, p.id, r, passers, p.remote and not p.bot)
             b.power = i == 0 and power
+            if i == 0 and not power and p.search_bomb and not any(o.owner == p.id and o.search for o in self.bombs):
+                b.search, b.remote, b.t = True, False, SEARCH_IDLE
             b.pierce = p.pierce_bomb and not b.power  # a super bomba não perfura: alcance máximo, mas blocos param o fogo
             self.bombs.append(b)
             self.bomb_at[(x, y)] = b
@@ -899,6 +907,50 @@ class Room:
         b.belt = False
         b.speed = KICK_SPEED
 
+    def search_step(self, b):
+        """Bomba de busca: parada, aciona quando um adversário chega a SEARCH_RANGE casas; depois persegue e explode em SEARCH_FUSE."""
+        foes = [q for q in self.players.values() if q.alive and q.id != b.owner and q.in_round]
+        if b.hunt is None:
+            near = [q for q in foes if abs(q.x - (b.x + 0.5)) + abs(q.y - (b.y + 0.5)) <= SEARCH_RANGE + 0.5]
+            if not near:
+                return
+            b.hunt, b.t = min(near, key=lambda q: abs(q.x - b.x) + abs(q.y - b.y)).id, SEARCH_FUSE
+            self._stop(b)
+        tgt = self.players.get(b.hunt)
+        if not (tgt and tgt.alive):  # alvo morreu: passa para o adversário vivo mais próximo
+            if not foes:
+                return
+            tgt = min(foes, key=lambda q: abs(q.x - b.x) + abs(q.y - b.y))
+            b.hunt = tgt.id
+        if b.vx or b.vy:
+            return
+        goal = (int(tgt.x), int(tgt.y))
+        step = self._chase_dir(b, goal)
+        if step and self._bomb_cell_free(b.x + step[0], b.y + step[1], b):
+            b.vx, b.vy, b.prog, b.speed, b.belt = step[0], step[1], 0.0, SEARCH_SPEED, False
+
+    def _chase_dir(self, b, goal):
+        """Primeiro passo do menor caminho (BFS) por casas livres até a casa `goal`; blocos, paredes e outras bombas barram."""
+        start = (b.x, b.y)
+        if start == goal:
+            return None
+        first, seen, queue = {}, {start}, [start]
+        for c in queue:
+            for dx, dy in DIRS:
+                n = (c[0] + dx, c[1] + dy)
+                if n in seen or not (0 <= n[0] < self.w and 0 <= n[1] < self.h):
+                    continue
+                if n != goal and (self.grid[n[1]][n[0]] != EMPTY or n in self.bomb_at):
+                    continue
+                if n == goal and self.grid[n[1]][n[0]] != EMPTY:
+                    continue
+                seen.add(n)
+                first[n] = first.get(c, (dx, dy))
+                if n == goal:
+                    return first[n]
+                queue.append(n)
+        return None
+
     def slide(self, b):
         b.prog += b.speed * TICK
         while b.prog >= 1.0:
@@ -910,6 +962,9 @@ class Room:
             b.x, b.y = nx, ny
             self.bomb_at[(nx, ny)] = b
             b.prog -= 1.0
+            if b.hunt is not None:  # perseguindo: decide a direção de novo a cada casa
+                self._stop(b)
+                return
             if b.belt:  # na esteira segue a direção da esteira; saiu dela, para
                 sp = self.specials.get((b.x, b.y))
                 if sp and sp[0] == "b":
@@ -1098,7 +1153,7 @@ class Room:
                  "abil": p.abilities()}
                 for p in sorted(self.connected(), key=lambda p: p.id)
             ],
-            "bombs": [[*(round(v, 2) for v in b.pos()), round(b.t, 2), b.owner, b.remote, b.power, b.pierce] for b in self.bombs],
+            "bombs": [[*(round(v, 2) for v in b.pos()), round(b.t, 2), b.owner, b.remote, b.power, b.pierce, 0 if not b.search else 1 if b.hunt is None else 2] for b in self.bombs],
             "flames": [[x, y, round(exp - self.now, 2), self.flame_conn.get((x, y), CONN_ALL)] for (x, y), exp in self.flames.items()],
             "items": [[x, y, k] for (x, y), k in self.items.items()],
             "specials": [[x, y, "b", {(1, 0): "r", (-1, 0): "l", (0, 1): "d", (0, -1): "u"}[sp[1]]] if sp[0] == "b"
