@@ -9,7 +9,7 @@ TICK = 1 / 30
 MAX_PLAYERS = 6
 
 BOMB_FUSE = 2.0
-SEARCH_RANGE, SEARCH_FUSE, SEARCH_IDLE, SEARCH_SPEED = 3, 3.0, 12.0, 3.2  # bomba de busca: raio (casas) que a aciona, pavio depois de acionada, espera parada e velocidade
+SEARCH_RANGE, SEARCH_FUSE, SEARCH_IDLE, SEARCH_SPEED = 3, 3.0, 5.0, 3.2  # bomba de busca: raio (casas) que a aciona, pavio depois de acionada, espera parada e velocidade
 REMOTE_SAFETY = 8.0  # bomba remota explode sozinha depois disso
 FLAME_TIME = 0.5
 HALF = 0.4  # meia largura da hitbox, em tiles
@@ -28,13 +28,9 @@ ICE_FACTOR = 0.9
 RAIN_INTERVAL, RAIN_WARN = 0.35, 1.0
 RAIN_RAMP, RAIN_FACTOR, RAIN_MIN = 5.0, 0.6, 0.03  # a cada RAIN_RAMP s o intervalo entre raios cai (x RAIN_FACTOR, mínimo RAIN_MIN) e entra +1 raio por disparo
 FALL_INTERVAL, FALL_WARN = 0.35, 1.2  # desabamento: um novo trecho começa a rachar a cada intervalo; cai depois do aviso
-EVENT_FIRST, EVENT_MIN, EVENT_MAX = 12.0, 14.0, 24.0
-ROCK_WARN, ROCKS = 1.5, 3
 SD_STYLES = {"spiral": "Morte súbita: o campo fecha em espiral!", "columns": "Morte súbita: paredes pelos lados!",
              "rows": "Morte súbita: paredes por cima e por baixo!", "rain": "Morte súbita: chuva de fogo!",
              "collapse": "Morte súbita: o chão está desabando!"}
-AIRDROP_KINDS = [k for k in ("bomb_up", "fire_up", "speed_up", "remote", "kick", "glove", "punch", "shield",
-                             "heart", "line_bomb", "power_bomb", "pierce_bomb", "search_bomb")]
 MAX_LIVES = 3
 SD_DELAY, SD_INTERVAL = 1.0, 0.2  # morte súbita
 PASS_COOLDOWN = 1.5  # depois de receber a caveira, não dá para devolvê-la logo
@@ -54,7 +50,7 @@ CONN_BIT = {(-1, 0): CONN_L, (1, 0): CONN_R, (0, -1): CONN_U, (0, 1): CONN_D}
 ITEM_WEIGHTS = {
     "bomb_up": 14, "fire_up": 14, "speed_up": 10, "full_fire": 2, "remote": 4,
     "bomb_pass": 3, "wall_pass": 3, "kick": 5, "glove": 4, "punch": 4,
-    "shield": 3, "heart": 3, "skull": 6, "line_bomb": 3, "power_bomb": 3,
+    "shield": 2, "heart": 2, "skull": 6, "line_bomb": 3, "power_bomb": 3,
     "pierce_bomb": 3, "search_bomb": 3,
 }
 ITEM_KINDS = list(ITEM_WEIGHTS)
@@ -176,7 +172,7 @@ class Room:
         self.next_pid = 1
         self.host = None
         self.map, self.rounds, self.round_time = "rotate", 3, 120
-        self.events, self.sd_var = False, True  # eventos no mapa e morte súbita variada (configuráveis)
+        self.sd_var = True  # morte súbita variada (configurável)
         self.event_id, self.event_msg = 0, ""
         self.map_queue = []  # mapas ainda não usados no modo "rotate"
         self.cur_map = "classic"
@@ -195,9 +191,8 @@ class Room:
             self.map = m["map"]
         elif m.get("map") in ("rotate", "random"):
             self.map = "rotate"
-        for key, attr in (("events", "events"), ("sd_var", "sd_var")):
-            if key in m:
-                setattr(self, attr, str(m[key]).lower() in ("1", "true", "on", "sim"))
+        if "sd_var" in m:
+            self.sd_var = str(m["sd_var"]).lower() in ("1", "true", "on", "sim")
         for key, attr, lo, hi in (("rounds", "rounds", 1, 20), ("time", "round_time", 30, 600)):
             try:
                 setattr(self, attr, max(lo, min(hi, int(m[key]))))
@@ -349,7 +344,6 @@ class Room:
         self.sd_elapsed = 0.0
         self.warns = []  # [x, y, tipo, tempo restante]: rocha, raio ou chão prestes a cair
         self.holes = set()  # casas onde o chão já caiu (viram parede por dentro, mas o cliente desenha um buraco)
-        self.ev_t = EVENT_FIRST
 
     def to_lobby(self):
         for pid in [i for i, p in self.players.items() if not p.connected]:
@@ -533,11 +527,6 @@ class Room:
                     else:
                         self.sd_step()
                         self.sd_t += SD_INTERVAL
-            if self.events and not self.sudden:
-                self.ev_t -= TICK
-                if self.ev_t <= 0:
-                    self.ev_t = random.uniform(EVENT_MIN, EVENT_MAX)
-                    self.map_event()
             self.tick_warns()
             for p in self.players.values():
                 if p.alive:
@@ -683,7 +672,7 @@ class Room:
         else:
             p.alive = False
 
-    # ---------- morte súbita variada e eventos do mapa ----------
+    # ---------- morte súbita variada ----------
     def announce(self, msg):
         self.event_id += 1
         self.event_msg = msg
@@ -719,19 +708,6 @@ class Room:
             if self.grid[cell[1]][cell[0]] != WALL and not any(w[0] == cell[0] and w[1] == cell[1] for w in self.warns):
                 self.warns.append([cell[0], cell[1], "strike", RAIN_WARN])
 
-    def map_event(self):
-        cells = self.free_cells()
-        if not cells:
-            return
-        if random.random() < 0.5:
-            x, y = random.choice(cells)
-            self.items[(x, y)] = random.choice(AIRDROP_KINDS)
-            self.announce("📦 Um suprimento caiu no mapa!")
-        else:
-            for x, y in random.sample(cells, min(ROCKS, len(cells))):
-                self.warns.append([x, y, "rock", ROCK_WARN])
-            self.announce("🪨 Rochas vão cair!")
-
     def tick_warns(self):
         for w in list(self.warns):
             w[3] -= TICK
@@ -751,13 +727,6 @@ class Room:
                 self.flames[(x, y)] = self.now + FLAME_TIME
                 self.flame_conn[(x, y)] = CONN_ALL  # raio: casa isolada
                 self.burn({(x, y)})
-            else:  # rocha: machuca quem está embaixo; vira bloco se a casa estiver livre
-                under = [p for p in self.players.values() if p.alive and (int(p.x), int(p.y)) == (x, y)]
-                for p in under:
-                    self.hit(p)
-                if (not under and self.grid[y][x] == EMPTY and (x, y) not in self.bomb_at
-                        and (x, y) not in self.items and (x, y) not in self.specials):
-                    self.grid[y][x] = BLOCK
 
     def seal(self, x, y):
         """A casa vira parede; o que estava nela some e quem estava em cima morre."""
@@ -914,7 +883,7 @@ class Room:
             near = [q for q in foes if abs(q.x - (b.x + 0.5)) + abs(q.y - (b.y + 0.5)) <= SEARCH_RANGE + 0.5]
             if not near:
                 return
-            b.hunt, b.t = min(near, key=lambda q: abs(q.x - b.x) + abs(q.y - b.y)).id, SEARCH_FUSE
+            b.hunt, b.t = min(near, key=lambda q: abs(q.x - b.x) + abs(q.y - b.y)).id, min(b.t, SEARCH_FUSE)  # nunca passa do tempo que já restava
             self._stop(b)
         tgt = self.players.get(b.hunt)
         if not (tgt and tgt.alive):  # alvo morreu: passa para o adversário vivo mais próximo
@@ -934,13 +903,14 @@ class Room:
         start = (b.x, b.y)
         if start == goal:
             return None
+        occupied = {(int(q.x), int(q.y)) for q in self.players.values() if q.alive} - {goal}  # jogadores também barram o caminho
         first, seen, queue = {}, {start}, [start]
         for c in queue:
             for dx, dy in DIRS:
                 n = (c[0] + dx, c[1] + dy)
                 if n in seen or not (0 <= n[0] < self.w and 0 <= n[1] < self.h):
                     continue
-                if n != goal and (self.grid[n[1]][n[0]] != EMPTY or n in self.bomb_at):
+                if n != goal and (self.grid[n[1]][n[0]] != EMPTY or n in self.bomb_at or n in occupied):
                     continue
                 if n == goal and self.grid[n[1]][n[0]] != EMPTY:
                     continue
@@ -1132,7 +1102,7 @@ class Room:
             "t": "state", "room": self.name, "phase": self.phase, "host": self.host,
             "map": self.cur_map, "w": self.w, "h": self.h,
             "settings": {"map": self.map, "rounds": self.rounds, "time": self.round_time,
-                         "events": self.events, "sd_var": self.sd_var},
+                         "sd_var": self.sd_var},
             "sd_style": self.sd_style if self.sudden else "",
             "event": {"id": self.event_id, "msg": self.event_msg},
             "warn": [[w[0], w[1], w[2], round(w[3], 2)] for w in self.warns],

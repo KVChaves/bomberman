@@ -236,6 +236,65 @@ def _bastions(x, y, w, h):
     return "."
 
 
+def _lava_ring(x, y, w, h):
+    """Anel de lava em volta do centro; só dá para entrar nele pelas quatro pontes (meio de cada lado)."""
+    dx, dy = x - w // 2, y - h // 2
+    if max(abs(dx), abs(dy)) == 3:
+        return "." if dx == 0 or dy == 0 else "L"
+    if (dx, dy) == (0, 0):
+        return "_"
+    if max(abs(dx), abs(dy)) <= 2:
+        return "o" if max(abs(dx), abs(dy)) == 1 and (dx == 0 or dy == 0) else "."
+    return _classic(x, y, w, h)
+
+
+def _lava_bridges(x, y, w, h):
+    """Dois rios de lava na vertical, com três pontes cada; o meio do mapa fica isolado dos lados."""
+    if x in (4, 10) and 1 <= y <= h - 2:
+        return "." if y in (3, 6, 9) else "L"
+    return _classic(x, y, w, h) if x not in (3, 5, 9, 11) else "."
+
+
+_PINWHEEL_BLADE = [(dx, -2) for dx in range(-1, 4)]
+
+
+def _pinwheel(x, y, w, h):
+    """Quatro pás de esteira em volta do centro, cada uma empurrando para um lado: o campo gira no sentido horário."""
+    dx, dy = x - w // 2, y - h // 2
+    cells, d = _PINWHEEL_BLADE, ">"
+    for turn in range(4):
+        if (dx, dy) in cells:
+            return d
+        cells = [(-cy, cx) for cx, cy in cells]  # gira 90° no sentido horário
+        d = {">": "v", "v": "<", "<": "^", "^": ">"}[d]
+    return _classic(x, y, w, h)
+
+
+_DIMENSIONS = {(2, 4), (12, 8), (4, 6), (10, 6), (6, 2), (8, 10)}  # 3 pares espelhados pelo centro
+
+
+def _dimensions(x, y, w, h):
+    return "w" if (x, y) in _DIMENSIONS else _grid3(x, y, w, h)
+
+
+def _rink(x, y, w, h):
+    """Rinque: quase todo o miolo é gelo, com quatro pilares no meio para frear a deslizada."""
+    dx, dy = x - w // 2, y - h // 2
+    if abs(dx) == 2 and abs(dy) == 2:
+        return "#"
+    if abs(dx) <= 4 and abs(dy) <= 3:
+        return "i"
+    return _classic(x, y, w, h)
+
+
+def _ice_cross(x, y, w, h):
+    """Uma cruz larga de gelo cortando o campo, com os pilares do clássico no resto."""
+    dx, dy = abs(x - w // 2), abs(y - h // 2)
+    if dx <= 1 or dy <= 1:
+        return "i"
+    return _classic(x, y, w, h)
+
+
 MAPS = {
     "classic": dict(name="Clássico", w=15, h=13, rule=_classic, density=0.75),
     "arena": dict(name="Arena Aberta", w=15, h=13, rule=_arena, density=0.55),
@@ -263,6 +322,12 @@ MAPS = {
     "belts_parallel": dict(name="Esteiras Paralelas", w=15, h=13, rule=_belts_parallel, density=0.7),
     "bastions": dict(name="Bastiões", w=15, h=13, rule=_bastions, density=0.65),
     "lava": dict(name="Campo de Lava", w=15, h=13, rule=_lava_field, density=0.8),
+    "lava_ring": dict(name="Anel de Lava", w=15, h=13, rule=_lava_ring, density=0.7),
+    "lava_bridges": dict(name="Pontes de Lava", w=15, h=13, rule=_lava_bridges, density=0.7),
+    "pinwheel": dict(name="Cata-vento", w=15, h=13, rule=_pinwheel, density=0.7),
+    "dimensions": dict(name="Dimensões", w=15, h=13, rule=_dimensions, density=0.7),
+    "rink": dict(name="Rinque", w=15, h=13, rule=_rink, density=0.7),
+    "ice_cross": dict(name="Cruz Gelada", w=15, h=13, rule=_ice_cross, density=0.7),
 }
 ORDER = list(MAPS)
 
