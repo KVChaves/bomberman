@@ -9,6 +9,7 @@ TICK = 1 / 30
 MAX_PLAYERS = 6
 
 BOMB_FUSE = 2.0
+MINE_IDLE, MINE_FUSE = 25.0, 0.8  # mina: espera armada (depois explode sozinha) e pavio depois que um adversário pisa nela
 SEARCH_RANGE, SEARCH_FUSE, SEARCH_IDLE, SEARCH_SPEED = 3, 3.0, 5.0, 3.2  # bomba de busca: raio (casas) que a aciona, pavio depois de acionada, espera parada e velocidade
 REMOTE_SAFETY = 8.0  # bomba remota explode sozinha depois disso
 FLAME_TIME = 0.5
@@ -51,7 +52,7 @@ ITEM_WEIGHTS = {
     "bomb_up": 14, "fire_up": 14, "speed_up": 10, "full_fire": 2, "remote": 4,
     "bomb_pass": 3, "wall_pass": 3, "kick": 5, "glove": 4, "punch": 4,
     "shield": 2, "heart": 2, "skull": 6, "line_bomb": 3, "power_bomb": 3,
-    "pierce_bomb": 3, "search_bomb": 3,
+    "pierce_bomb": 3, "search_bomb": 3, "mine_bomb": 3,
 }
 ITEM_KINDS = list(ITEM_WEIGHTS)
 CURSES = ["slow", "fast", "diarrhea", "constipation", "reverse", "short"]
@@ -91,6 +92,7 @@ class Player:
         self.kick = self.glove = self.punch = self.line_bomb = False
         self.pierce_bomb = False  # bomba perfurante: o fogo atravessa blocos e bombas, só para nas paredes (não vale para a super bomba)
         self.search_bomb = False  # bomba de busca: a primeira bomba solta persegue o primeiro adversário que chegar a 3 casas (a super bomba tem prioridade)
+        self.mine_bomb = False  # mina: plantada com a tecla C (uma por vez, fora do limite de bombas); fica no chão, sem bloquear ninguém, e explode quando alguém pisa nela
         self.power_bomb = False  # super bomba: a primeira bomba solta é MAX_RANGE, mas só uma por vez em campo
         self.lives = 0
         self.shield = False  # colete: imortal por SHIELD_TIME segundos
@@ -98,12 +100,17 @@ class Player:
         self.invuln_t = 0.0
         self.curse, self.curse_t, self.auto_t, self.pass_cd = "", 0.0, 0.0, 0.0
         self.warp_armed = True  # portal só teleporta de novo depois que você sai dele
-        self.want_bomb = self.want_det = False
+        self.want_bomb = self.want_det = self.want_punch = self.want_mine = False
         self.ice_dir = (0, 0)
         self.died_tick = 0
 
+    def bomb_slots(self):
+        """Bombas ao mesmo tempo: o limite do jogador + 1 por poder de bomba especial além do primeiro (super, busca, perfurante; a mina tem tecla e limite próprios),
+        para dar para soltar todos os tipos que ele tem mesmo sem upgrade de bomba extra."""
+        return self.max_bombs + max(0, self.power_bomb + self.search_bomb + self.pierce_bomb - 1)
+
     def abilities(self):
-        return [k for k in ("remote", "bomb_pass", "wall_pass", "kick", "glove", "punch", "line_bomb", "power_bomb", "pierce_bomb", "search_bomb")
+        return [k for k in ("remote", "bomb_pass", "wall_pass", "kick", "glove", "punch", "line_bomb", "power_bomb", "pierce_bomb", "search_bomb", "mine_bomb")
                 if getattr(self, k)]
 
 
@@ -117,6 +124,8 @@ class Bomb:
         self.power = False  # super bomba: enquanto ela não explode, o dono só solta bombas comuns
         self.search = False  # bomba de busca: parada até um adversário chegar perto; aí persegue e explode em SEARCH_FUSE
         self.hunt = None  # id do jogador perseguido (None = ainda parada)
+        self.mine = False  # mina: não bloqueia a casa; quem pisa nela aciona o pavio
+        self.triggered = False
         self.t = REMOTE_SAFETY if remote else BOMB_FUSE
         self.passers = passers  # jogadores que ainda podem atravessar (acabaram de soltá-la)
         self.done = False
@@ -311,6 +320,10 @@ class Room:
             p.want_bomb = self.phase in ("playing", "over")
         elif t == "det":
             p.want_det = True
+        elif t == "mine":
+            p.want_mine = p.mine_bomb and self.phase in ("playing", "over")
+        elif t == "punch":
+            p.want_punch = p.punch
         elif t == "pass" and p.bomb_pass:
             p.pass_on = not p.pass_on
             if not p.pass_on:  # não prende o jogador dentro da bomba em que ele está
@@ -538,6 +551,8 @@ class Room:
                 b.fly[4] += TICK
                 if b.fly[4] >= FLIGHT_TIME:
                     self.land(b)
+            elif b.mine:
+                self.mine_step(b)
             elif b.vx or b.vy:
                 self.slide(b)
             else:
@@ -605,6 +620,15 @@ class Room:
         if p.want_bomb:
             p.want_bomb = False
             self.place_bomb(p)
+        if p.want_mine:
+            p.want_mine = False
+            self.place_mine(p)
+        if p.want_punch:  # soco pela tecla própria: arremessa a bomba da casa à frente (com o chute, andar contra a bomba só chuta)
+            p.want_punch = False
+            fx, fy = FACE[p.face]
+            b = self.bomb_at.get((int(p.x) + fx, int(p.y) + fy))
+            if b and not b.fly:
+                self.throw(b, fx, fy)
         if p.want_det:
             p.want_det = False
             for b in self.bombs:
@@ -794,7 +818,7 @@ class Room:
             ax, ay = int(p.x + dx * (HALF + 0.05)), int(p.y + dy * (HALF + 0.05))
             b = self.bomb_at.get((ax, ay))
             if b and not b.fly and not (p.bomb_pass and p.pass_on) and p.id not in b.passers:
-                if p.punch:
+                if p.punch and not p.kick:
                     self.throw(b, dx, dy)
                 else:
                     self.kick(b, dx, dy)
@@ -837,7 +861,7 @@ class Room:
             if p.glove and not auto and not here.fly and not (here.vx or here.vy):
                 self.throw(here, *FACE[p.face])  # luva: arremessa a bomba em que está
             return
-        free = p.max_bombs - sum(1 for b in self.bombs if b.owner == p.id)
+        free = p.bomb_slots() - sum(1 for b in self.bombs if b.owner == p.id and not b.mine)
         if free <= 0:
             return
         count = free if (p.line_bomb and not auto) else 1
@@ -857,6 +881,19 @@ class Room:
             self.bombs.append(b)
             self.bomb_at[(x, y)] = b
 
+    def place_mine(self, p):
+        """Mina (tecla C): uma por jogador, fora do limite de bombas. Fica no chão da casa em que ele está, sem bloquear ninguém."""
+        if self.phase not in ("playing", "over") or p.curse == "constipation":
+            return
+        x, y = int(p.x), int(p.y)
+        if self.grid[y][x] != EMPTY or any(o.mine and (o.owner == p.id or (o.x, o.y) == (x, y)) and not o.done for o in self.bombs):
+            return
+        passers = {q.id for q in self.players.values() if q.alive and self.overlaps_tile(q, x, y)}
+        b = Bomb(x, y, p.id, p.range if p.curse != "short" else 1, passers, False)
+        b.mine, b.t = True, MINE_IDLE
+        b.pierce = p.pierce_bomb
+        self.bombs.append(b)
+
     def _bomb_cell_free(self, x, y, b):
         if not (0 <= x < self.w and 0 <= y < self.h):
             return False
@@ -875,6 +912,18 @@ class Room:
         b.prog = 0.0
         b.belt = False
         b.speed = KICK_SPEED
+
+    def mine_step(self, b):
+        """Mina: armada no chão; qualquer jogador vivo que pisa na casa aciona o pavio curto, o dono também. Quem estava na casa
+        quando ela foi solta (o dono, em geral) só a aciona depois de sair e voltar."""
+        b.passers = {pid for pid in b.passers if pid in self.players and self.players[pid].alive
+                     and self.overlaps_tile(self.players[pid], b.x, b.y)}
+        if b.triggered:
+            return
+        for q in self.players.values():
+            if q.alive and q.in_round and q.id not in b.passers and (int(q.x), int(q.y)) == (b.x, b.y):
+                b.triggered, b.t = True, min(b.t, MINE_FUSE)
+                return
 
     def search_step(self, b):
         """Bomba de busca: parada, aciona quando um adversário chega a SEARCH_RANGE casas; depois persegue e explode em SEARCH_FUSE."""
@@ -1025,6 +1074,7 @@ class Room:
             b.done = True
             part = {}
             c, bl, hit = self.blast(*self.origin(b), b.range, b.pierce, part)
+            hit.extend(m for m in self.bombs if m.mine and not m.done and (m.x, m.y) in c)  # minas no caminho do fogo explodem junto
             for cell, m in part.items():
                 conn[cell] = conn.get(cell, 0) | m
             cells.update(c)
@@ -1123,7 +1173,8 @@ class Room:
                  "abil": p.abilities()}
                 for p in sorted(self.connected(), key=lambda p: p.id)
             ],
-            "bombs": [[*(round(v, 2) for v in b.pos()), round(b.t, 2), b.owner, b.remote, b.power, b.pierce, 0 if not b.search else 1 if b.hunt is None else 2] for b in self.bombs],
+            "bombs": [[*(round(v, 2) for v in b.pos()), round(b.t, 2), b.owner, b.remote, b.power, b.pierce,
+                       (1 if b.hunt is None else 2) if b.search else (4 if b.triggered else 3) if b.mine else 0] for b in self.bombs],
             "flames": [[x, y, round(exp - self.now, 2), self.flame_conn.get((x, y), CONN_ALL)] for (x, y), exp in self.flames.items()],
             "items": [[x, y, k] for (x, y), k in self.items.items()],
             "specials": [[x, y, "b", {(1, 0): "r", (-1, 0): "l", (0, 1): "d", (0, -1): "u"}[sp[1]]] if sp[0] == "b"

@@ -103,7 +103,7 @@ def think(room, p):
 
     enemies = {(int(q.x), int(q.y)) for q in room.players.values() if q.alive and q is not p}
     owned = sum(1 for b in room.bombs if b.owner == p.id)
-    can_bomb = (p.curse != "constipation" and owned < p.max_bombs and p.bot_cd <= 0
+    can_bomb = (p.curse != "constipation" and owned < p.bomb_slots() and p.bot_cd <= 0
                 and start not in room.bomb_at)
 
     if can_bomb and _useful(room, p, start, enemies) and _safe_after(room, p, start, danger):

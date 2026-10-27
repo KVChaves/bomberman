@@ -58,17 +58,6 @@ def _diamond(x, y, w, h):
     return "."
 
 
-def _volcano(x, y, w, h):
-    dx, dy = abs(x - w // 2), abs(y - h // 2)
-    if dx <= 1 and dy <= 1:
-        return "#"
-    if max(dx, dy) == 2:
-        return "o"
-    if x % 2 == 0 and y % 2 == 0:
-        return "#"
-    return "."
-
-
 # ---------- fases com mecânicas especiais ----------
 _PORTALS = {(3, 3), (11, 9), (11, 3), (3, 9), (5, 6), (9, 6)}  # 3 pares, espelhados pelo centro
 
@@ -301,7 +290,6 @@ MAPS = {
     "cross": dict(name="Quadrantes", w=15, h=13, rule=_cross, density=0.75),
     "factory": dict(name="Fábrica", w=15, h=13, rule=_factory, density=0.7),
     "diamond": dict(name="Diamante", w=15, h=13, rule=_diamond, density=0.7),
-    "volcano": dict(name="Vulcão", w=15, h=13, rule=_volcano, density=0.7),
     "big": dict(name="Campo Grande", w=15, h=13, rule=_classic, density=0.7),
     "portals": dict(name="Portais", w=15, h=13, rule=_portals, density=0.7),
     "belt": dict(name="Esteira", w=15, h=13, rule=_belt, density=0.7),
