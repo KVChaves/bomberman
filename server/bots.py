@@ -102,12 +102,16 @@ def think(room, p):
         return
 
     enemies = {(int(q.x), int(q.y)) for q in room.players.values() if q.alive and q is not p}
-    owned = sum(1 for b in room.bombs if b.owner == p.id)
+    owned = sum(1 for b in room.bombs if b.owner == p.id and not b.mine)
     can_bomb = (p.curse != "constipation" and owned < p.bomb_slots() and p.bot_cd <= 0
                 and start not in room.bomb_at)
 
     if can_bomb and _useful(room, p, start, enemies) and _safe_after(room, p, start, danger):
-        p.want_bomb = True
+        if (p.search_bomb and not any(b.owner == p.id and b.search for b in room.bombs)
+                and any(abs(e[0] - start[0]) + abs(e[1] - start[1]) <= 8 for e in enemies)):
+            p.want_search = True  # com inimigo por perto, a primeira bomba é a de busca
+        else:
+            p.want_bomb = True
         p.bot_cd = 0.6
         p.dx = p.dy = 0
         return

@@ -7,6 +7,8 @@ Cada mapa é uma regra (x, y, w, h) -> caractere:
 Portais e esteiras são chão livre: nunca recebem bloco.
 A borda é sempre parede. Os 6 pontos de partida são os mesmos em todos os mapas (veja spawn_points).
 """
+import json
+import os
 import random
 from collections import deque
 
@@ -284,6 +286,21 @@ def _ice_cross(x, y, w, h):
     return _classic(x, y, w, h)
 
 
+SWAMP = [  # metade de cima; a de baixo é o espelho. Blocos de pedra em grupos para o autotile do pântano fechar as bordas
+    "###############",
+    "#.............#",
+    "#.##.#...#.##.#",
+    "#.#.........#.#",
+    "#...##...##...#",
+    "#.#....#....#.#",
+    "#.....#.#.....#",
+]
+
+
+def _swamp(x, y, w, h):
+    return SWAMP[min(y, h - 1 - y)][x]
+
+
 MAPS = {
     "classic": dict(name="Clássico", w=15, h=13, rule=_classic, density=0.75),
     "arena": dict(name="Arena Aberta", w=15, h=13, rule=_arena, density=0.55),
@@ -315,9 +332,25 @@ MAPS = {
     "pinwheel": dict(name="Cata-vento", w=15, h=13, rule=_pinwheel, density=0.7),
     "dimensions": dict(name="Dimensões", w=15, h=13, rule=_dimensions, density=0.7),
     "rink": dict(name="Rinque", w=15, h=13, rule=_rink, density=0.7),
+    "swamp": dict(name="Pântano", w=15, h=13, rule=_swamp, density=0.7),
     "ice_cross": dict(name="Cruz Gelada", w=15, h=13, rule=_ice_cross, density=0.7),
 }
 ORDER = list(MAPS)
+
+
+def _load_biomes():
+    """Bioma (tema de tiles) de cada mapa, lido de public/assets/theme.json: a mesma fonte que o cliente usa para desenhar.
+    Sem o arquivo, cada mapa vira um bioma só dele."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "public", "assets", "theme.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            by_map = json.load(f)["tilesets"]["maps"]
+    except (OSError, ValueError, KeyError, TypeError):
+        by_map = {}
+    return {m: by_map.get(m, m) for m in MAPS}
+
+
+BIOME = _load_biomes()
 
 
 def spawn_points(w, h):
