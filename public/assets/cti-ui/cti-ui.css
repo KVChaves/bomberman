@@ -1,0 +1,265 @@
+/* =========================================================
+   CTI BOMBERS — UI KIT  (madeira · ferro · ouro · deserto)
+   Tudo em pixel art: os quadros são PNG 9-slice escalados
+   com image-rendering: pixelated.  Mude --px para mudar a
+   "espessura" do pixel (2px = pequeno, 3px = padrão, 4px = grande).
+   ========================================================= */
+/* fontes hospedadas junto com o jogo (assets/fonts): sem depender do Google Fonts */
+@font-face { font-family: "Rye"; font-weight: 400; font-display: swap; src: url("../fonts/Rye-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Pixelify Sans"; font-weight: 500 700; font-display: swap; src: url("../fonts/PixelifySans.woff2") format("woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 400; font-display: swap; src: url("../fonts/SpaceMono-400.woff2") format("woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 700; font-display: swap; src: url("../fonts/SpaceMono-700.woff2") format("woff2"); }
+
+:root {
+  --px: 3px;
+
+  --cti-ink: #1c1009;
+  --cti-wood-0: #3d2213; --cti-wood-1: #5c3319; --cti-wood-2: #7d4622;
+  --cti-wood-3: #9c5a2c; --cti-wood-4: #c07a3e; --cti-wood-5: #dc9a55;
+  --cti-iron-0: #151418; --cti-iron-1: #24232a; --cti-iron-2: #36343d;
+  --cti-iron-3: #4c4955; --cti-iron-4: #6c6876; --cti-iron-5: #9a95a3;
+  --cti-gold-1: #9a640f; --cti-gold-2: #d18f1c; --cti-gold-3: #f2b632; --cti-gold-4: #ffd76a;
+  --cti-red-2: #9e2e22; --cti-red-3: #c94a32; --cti-red-4: #e8735a;
+  --cti-green-2: #46702b; --cti-green-3: #68983c; --cti-green-4: #95c25a;
+  --cti-paper-1: #c9a774; --cti-paper-2: #e6cb98; --cti-paper-3: #f6e3bf; --cti-paper-4: #fff6e2;
+
+  --cti-font-title: "Rye", "Georgia", serif;
+  --cti-font-pixel: "Pixelify Sans", "Courier New", monospace;
+  --cti-font-body: "Space Mono", ui-monospace, monospace;
+}
+.cti-cursor, .cti-cursor * { cursor: url("assets/ui/cursor-2x.png") 2 2, auto; }
+
+/* ---------- fundos de tela ---------- */
+.cti-screen {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 0%, rgba(150, 88, 40, .35), transparent 70%),
+    radial-gradient(ellipse 120% 90% at 50% 120%, rgba(0, 0, 0, .55), transparent 60%),
+    url("assets/tiles/wood-dark.png") 0 0 / calc(32 * var(--px)) repeat;
+  image-rendering: pixelated;
+  color: var(--cti-paper-3);
+  font-family: var(--cti-font-body);
+}
+
+/* ---------- títulos ---------- */
+.cti-title {
+  font-family: var(--cti-font-title);
+  font-weight: 400;
+  font-size: clamp(36px, 6vw, 84px);
+  line-height: 1;
+  letter-spacing: .02em;
+  color: var(--cti-paper-3);
+  margin: 0;
+  text-shadow:
+    0 calc(var(--px) * 1) 0 var(--cti-wood-4),
+    0 calc(var(--px) * 2) 0 var(--cti-wood-2),
+    0 calc(var(--px) * 3) 0 var(--cti-wood-1),
+    0 calc(var(--px) * 4) 0 var(--cti-ink),
+    calc(var(--px) * 1) calc(var(--px) * 5) 0 rgba(0, 0, 0, .45);
+}
+.cti-title .accent { color: var(--cti-red-3); text-shadow: 0 calc(var(--px)) 0 var(--cti-red-4), 0 calc(var(--px)*2) 0 var(--cti-red-2), 0 calc(var(--px)*3) 0 #6e1d16, 0 calc(var(--px)*4) 0 var(--cti-ink), calc(var(--px)) calc(var(--px)*5) 0 rgba(0,0,0,.45); }
+.cti-title--md { font-size: clamp(28px, 4vw, 48px); }
+
+.cti-subtitle {
+  display: inline-flex; align-items: center; gap: .7em;
+  font-family: var(--cti-font-title); letter-spacing: .14em;
+  color: var(--cti-paper-3); text-shadow: 0 2px 0 var(--cti-ink);
+}
+.cti-subtitle::before, .cti-subtitle::after {
+  content: ""; width: 18px; height: 18px; flex: none;
+  background: url("assets/ui/ornament.png") center / contain no-repeat; image-rendering: pixelated;
+}
+
+.cti-heading {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 0 12px;
+  font-family: var(--cti-font-title); font-weight: 400; font-size: 22px; letter-spacing: .04em;
+  color: var(--cti-gold-3); text-shadow: 0 2px 0 var(--cti-ink), 0 3px 0 rgba(0,0,0,.35);
+}
+.cti-heading img { width: 32px; height: 32px; image-rendering: pixelated; }
+.cti-heading::after {
+  content: ""; flex: 1; height: 3px;
+  background: linear-gradient(90deg, var(--cti-gold-2), rgba(209, 143, 28, 0));
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .45);
+}
+
+/* ---------- botões ---------- */
+.cti-btn {
+  --img: url("assets/ui/btn-wood.png");
+  --img-h: url("assets/ui/btn-wood-hover.png");
+  --img-p: url("assets/ui/btn-wood-pressed.png");
+  --icon: 32px;
+  appearance: none; -webkit-appearance: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: .45em;
+  min-width: calc(var(--px) * 16);
+  border: solid transparent;
+  border-width: calc(var(--px) * 5);
+  border-image: var(--img) 5 fill / calc(var(--px) * 5) stretch;
+  image-rendering: pixelated;
+  background: none;
+  padding: 0 .55em calc(var(--px) * 2);
+  font: 700 20px/1.15 var(--cti-font-pixel);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--cti-paper-3);
+  text-shadow: 0 2px 0 var(--cti-ink);
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cti-btn img { width: var(--icon); height: var(--icon); image-rendering: pixelated; flex: none; }
+.cti-btn:hover { border-image-source: var(--img-h); }
+.cti-btn:active, .cti-btn.is-pressed, .cti-btn[aria-pressed="true"] {
+  border-image-source: var(--img-p);
+  padding-top: calc(var(--px) * 2); padding-bottom: 0;
+}
+.cti-btn:focus-visible { outline: 3px dashed var(--cti-gold-4); outline-offset: 4px; }
+.cti-btn:disabled, .cti-btn.is-disabled {
+  filter: grayscale(.85) brightness(.75); cursor: not-allowed; pointer-events: none;
+}
+
+.cti-btn--gold  { --img: url("assets/ui/btn-gold.png");  --img-h: url("assets/ui/btn-gold-hover.png");  --img-p: url("assets/ui/btn-gold-pressed.png");  color: var(--cti-ink); text-shadow: 0 2px 0 rgba(255,241,184,.7); }
+.cti-btn--iron  { --img: url("assets/ui/btn-iron.png");  --img-h: url("assets/ui/btn-iron-hover.png");  --img-p: url("assets/ui/btn-iron-pressed.png"); }
+.cti-btn--red   { --img: url("assets/ui/btn-red.png");   --img-h: url("assets/ui/btn-red-hover.png");   --img-p: url("assets/ui/btn-red-pressed.png");   color: var(--cti-paper-4); }
+.cti-btn--green { --img: url("assets/ui/btn-green.png"); --img-h: url("assets/ui/btn-green-hover.png"); --img-p: url("assets/ui/btn-green-pressed.png"); color: var(--cti-paper-4); }
+.cti-btn--cream { --img: url("assets/ui/btn-cream.png"); --img-h: url("assets/ui/btn-cream-hover.png"); --img-p: url("assets/ui/btn-cream-pressed.png"); color: var(--cti-wood-0); text-shadow: 0 2px 0 rgba(255,255,255,.6); }
+
+.cti-btn--sm { --px: 2px; --icon: 16px; font-size: 14px; }
+.cti-btn--lg { --px: 4px; --icon: 32px; font-size: 28px; }
+.cti-btn--block { display: flex; width: 100%; }
+.cti-btn--icon { padding-left: 0; padding-right: 0; min-width: 0; aspect-ratio: 1; }
+
+/* ---------- painéis ---------- */
+.cti-panel {
+  position: relative;
+  border: solid transparent;
+  border-width: calc(var(--px) * 8);
+  border-image: url("assets/ui/panel-wood.png") 8 / calc(var(--px) * 8);
+  image-rendering: pixelated;
+  background:
+    linear-gradient(rgba(20, 10, 4, .25), rgba(20, 10, 4, .45)),
+    url("assets/tiles/wood-dark.png") 0 0 / calc(32 * var(--px));
+  background-clip: padding-box;
+  padding: 14px 18px;
+  color: var(--cti-paper-3);
+}
+.cti-panel--planks {
+  background: url("assets/tiles/wood-planks.png") 0 0 / calc(32 * var(--px));
+  background-clip: padding-box;
+}
+.cti-panel--iron {
+  border-image-source: url("assets/ui/panel-iron.png");
+  background: linear-gradient(rgba(10, 8, 12, .35), rgba(10, 8, 12, .55)), url("assets/tiles/iron.png") 0 0 / calc(32 * var(--px));
+  background-clip: padding-box;
+}
+.cti-panel--paper {
+  border-image: url("assets/ui/panel-parchment.png") 8 fill / calc(var(--px) * 8);
+  background: none;
+  color: var(--cti-wood-0);
+}
+.cti-panel--paper .cti-heading { color: var(--cti-wood-1); text-shadow: 0 2px 0 rgba(255,255,255,.4); }
+.cti-panel--paper .cti-heading::after { background: linear-gradient(90deg, var(--cti-wood-2), transparent); box-shadow: none; }
+
+.cti-plaque {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4em;
+  border: solid transparent;
+  border-width: calc(var(--px) * 8);
+  border-image: url("assets/ui/plaque.png") 8 fill / calc(var(--px) * 8);
+  image-rendering: pixelated;
+  padding: 0 .4em;
+  font-family: var(--cti-font-title); font-size: 30px; letter-spacing: .06em;
+  color: var(--cti-paper-3);
+  text-shadow: 0 3px 0 var(--cti-ink);
+}
+.cti-plaque img { width: 32px; height: 32px; image-rendering: pixelated; }
+.cti-plaque--sm { --px: 2px; font-size: 20px; }
+.cti-plaque--num { font-family: var(--cti-font-pixel); font-weight: 700; color: var(--cti-gold-4); }
+
+/* ---------- formulários ---------- */
+.cti-field { display: grid; grid-template-columns: 1fr 1.3fr; align-items: center; gap: 12px; padding: 6px 0; }
+.cti-label { font: 700 13px var(--cti-font-body); color: var(--cti-paper-2); letter-spacing: .03em; text-shadow: 0 2px 0 var(--cti-ink); }
+.cti-panel--paper .cti-label { color: var(--cti-wood-1); text-shadow: none; }
+
+.cti-input, .cti-select {
+  appearance: none; -webkit-appearance: none;
+  width: 100%; box-sizing: border-box;
+  border: solid transparent;
+  border-width: calc(var(--px) * 4);
+  border-image: url("assets/ui/input.png") 4 / calc(var(--px) * 4);
+  image-rendering: pixelated;
+  background-color: var(--cti-paper-4);
+  background-clip: padding-box;
+  padding: 4px 8px;
+  font: 700 14px/1.4 var(--cti-font-body);
+  color: var(--cti-wood-0);
+  outline: none;
+}
+.cti-input::placeholder { color: var(--cti-paper-1); }
+.cti-input:focus, .cti-select:focus { border-image-source: url("assets/ui/input-focus.png"); }
+.cti-select {
+  padding-right: 36px; cursor: pointer;
+  background-image: url("assets/ui/chevron-down.png");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 18px 12px;
+}
+
+.cti-toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font: 700 13px var(--cti-font-body); }
+.cti-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.cti-toggle span { width: 52px; height: 28px; flex: none; background: url("assets/ui/toggle-off.png") 0 0 / 100% 100%; image-rendering: pixelated; }
+.cti-toggle input:checked + span { background-image: url("assets/ui/toggle-on.png"); }
+.cti-toggle input:focus-visible + span { outline: 3px dashed var(--cti-gold-4); outline-offset: 3px; }
+
+.cti-key {
+  display: inline-block; min-width: 1.2em; text-align: center;
+  border: solid transparent; border-width: 8px;
+  border-image: url("assets/ui/key.png") 4 fill / 8px;
+  image-rendering: pixelated;
+  padding: 0 2px 2px;
+  font: 700 12px/1 var(--cti-font-pixel); color: var(--cti-wood-0);
+  vertical-align: middle;
+}
+
+/* ---------- selos / badges ---------- */
+.cti-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  font: 700 11px/1.3 var(--cti-font-body); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--cti-paper-2);
+  background: var(--cti-iron-2);
+  box-shadow:
+    0 -2px 0 var(--cti-ink), 0 2px 0 var(--cti-ink), -2px 0 0 var(--cti-ink), 2px 0 0 var(--cti-ink),
+    inset 0 2px 0 rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .3);
+  margin: 2px;
+}
+.cti-badge--ready { background: var(--cti-green-2); color: var(--cti-paper-4); }
+.cti-badge--host  { background: var(--cti-gold-2);  color: var(--cti-ink); }
+
+/* ---------- placar / ranking ---------- */
+.cti-table { width: 100%; border-collapse: collapse; font: 700 13px var(--cti-font-body); }
+.cti-table th { text-align: left; padding: 6px 8px; font-size: 11px; color: var(--cti-paper-1); text-transform: uppercase; letter-spacing: .06em; border-bottom: 3px solid var(--cti-ink); }
+.cti-table td { padding: 7px 8px; color: var(--cti-paper-3); border-bottom: 2px solid rgba(0, 0, 0, .35); }
+.cti-table tr:nth-child(even) td { background: rgba(255, 255, 255, .03); }
+.cti-table tr.is-me td { background: rgba(242, 182, 50, .12); }
+.cti-table tr.is-me td:first-child { box-shadow: inset 4px 0 0 var(--cti-gold-3); }
+.cti-table .num { text-align: right; color: var(--cti-gold-4); font-family: var(--cti-font-body); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.cti-table .pos { width: 1%; color: var(--cti-paper-1); }
+.cti-table img { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; image-rendering: pixelated; }
+.cti-table tr:nth-child(1) .pos { color: var(--cti-gold-4); }
+
+.cti-toast {
+  display: inline-flex; align-items: center; gap: 10px;
+  --px: 2px;
+  border: solid transparent; border-width: 16px;
+  border-image: url("assets/ui/plaque.png") 8 fill / 16px;
+  image-rendering: pixelated;
+  padding: 0 6px;
+  font: 700 14px var(--cti-font-body); color: var(--cti-paper-3); text-shadow: 0 2px 0 var(--cti-ink);
+}
+.cti-toast img { width: 32px; height: 32px; image-rendering: pixelated; }
+
+.cti-icon { width: 32px; height: 32px; image-rendering: pixelated; vertical-align: middle; }
+.cti-icon--sm { width: 16px; height: 16px; }
+
+/* animação simples de "piscar" para alertas (morte súbita etc.) */
+@keyframes cti-blink { 50% { filter: brightness(1.6); } }

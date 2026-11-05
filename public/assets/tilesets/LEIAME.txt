@@ -1,42 +1,36 @@
-Tilesets 16x16 - renderizar a 3x (48px) com image-rendering: pixelated
+Tilesets 16x16 sem emenda (seamless) - o jogo desenha a 3x (48px) com image-rendering: pixelated.
 
-Ordem fixa nos spritesheets (tileset_<tema>.png), igual em todos os temas:
-  0 parede   1 inquebravel   2 quebravel   3 piso_a   4 piso_b   5 piso_decorado
-  6+ tiles de mecanica do tema (quando existem)
+CADA TEMA (pasta tilesets/<tema>/)
+  parede_autotile.png        borda do mapa      -> autotile 47 (folha 8x6 de 16x16)
+  inquebravel_autotile.png   pilares do mapa    -> autotile 47
+  quebravel.png              bloco que explode  -> imagem unica com fundo transparente (o piso aparece embaixo)
+  piso.png + 3 variantes     pisos sem emenda (mesma borda de 2 px); cada casa sorteia um, sempre o mesmo naquela posicao
+Os pesos do sorteio de cada piso ficam em theme.json (tilesets.themes.<tema>.floors).
 
-Mecanicas extras:
-  grama      -> 6 agua           (Rio)
-  gelo       -> 6 escorregadio   (Pista de Gelo, Faixas de Gelo)
-  industrial -> 6 esteira        (aponta para a direita; gire no codigo para as outras direcoes)
-  vulcao     -> 6 lava           (Campo de Lava)
-  magico     -> 6 portal         (overlay transparente: vai por cima de qualquer piso, use tambem no Teletransporte)
+AUTOTILE
+  autotile_lut.json (nesta pasta, igual para todos os temas): mascara dos 8 vizinhos do mesmo tipo (N=1 NE=2 E=4 SE=8 S=16 SW=32 W=64 NW=128)
+  -> indice da peca na folha (coluna = indice % 8, linha = indice / 8).
+  Parede e pilares sao tipos diferentes; fora do mapa conta como parede.
 
-Temas -> mapas:
-  grama: Classico, Campo Grande, Labirinto, Bastioes, Colunas, Aneis, Patio, Convergencia, Teletransporte, Rio, Campo Livre
-  deserto: Arena Aberta, Muralhas
-  gelo: Quadrantes, Pista de Gelo, Faixas de Gelo
-  industrial: Fabrica, Esteira, Esteiras Paralelas, Torres
-  vulcao: Vulcao, Campo de Lava
-  cristal: Diamante
-  magico: Portais
-  masmorra: Camaras
-  fortaleza: Fortaleza
+MECANICAS (animadas, 8 quadros; ficam em um tema so mas valem para qualquer mapa)
+  floresta/agua_autotile_anim.png           Rio: agua, autotile (8 blocos de 128x96 lado a lado), 150 ms/quadro
+  gelo/escorregadio_autotile_anim.png       gelo, autotile animado, 110 ms
+  vulcao/lava_autotile_anim.png             lava, autotile animado, 140 ms
+  industrial/esteira_<direcao>_anim.png     esteira, tira 128x16 por direcao (direita, esquerda, cima, baixo), 60 ms
+  magico/portal_anim.png                    portal, tira 128x16 transparente por cima do piso, 90 ms (cor diferente por par)
+  vulcao/piso_rachadura_anim.png            piso do vulcao (tira 128x16, 140 ms)
+  Quadro atual: Math.floor(tempo / ms) % 8
 
-ANIMACOES (pasta animacoes/) - tiras de 8 frames de 16x16 (128x16), frame 0 a esquerda
-  esteira_anim.png       60 ms/frame   (anda para a direita; espelhe/gire para outras direcoes)
-  agua_anim.png         150 ms/frame
-  escorregadio_anim.png 110 ms/frame
-  portal_anim.png        90 ms/frame   (transparente, vai por cima do piso)
-  lava_anim.png         140 ms/frame
+TEMAS -> MAPAS (theme.json, tilesets.maps)
+  floresta:   Classico, Campo Grande, Labirinto, Bastioes, Colunas, Aneis, Patio, Convergencia, Teletransporte, Rio, Campo Livre
+  deserto:    Arena Aberta, Muralhas
+  gelo:       Quadrantes, Pista de Gelo, Faixas de Gelo, Rinque, Cruz Gelada
+  industrial: Fabrica, Esteira, Esteiras Paralelas, Torres, Cata-vento
+  vulcao:     Campo de Lava, Anel de Lava, Pontes de Lava
+  cristal:    Diamante
+  magico:     Portais, Dimensoes
+  masmorra:   Camaras
+  fortaleza:  Fortaleza
+  pantano:    Pantano
 
-Canvas/JS:   frame = Math.floor(performance.now() / msPorFrame) % 8
-             ctx.drawImage(tira, frame*16, 0, 16, 16, x, y, 48, 48)
-
-CSS (escala 3x = 48px por tile):
-  .tile-esteira {
-    width: 48px; height: 48px; image-rendering: pixelated;
-    background: url("animacoes/esteira_anim.png") 0 0 / 384px 48px;
-    animation: tira8 0.48s steps(8) infinite;      /* 8 x 60 ms */
-  }
-  @keyframes tira8 { to { background-position: -384px 0; } }
-  (para os outros: troque a imagem e a duracao = 8 x ms/frame)
+TEMA NOVO: crie tilesets/<tema>/ com os 3 arquivos + os pisos, registre o tema e os pesos em theme.json e ligue os mapas a ele em tilesets.maps.

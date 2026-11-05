@@ -8,11 +8,11 @@ assets/
 ├── backgrounds/      ← fundo da tela inicial
 ├── bombs/            ← spritesheets das bombas (normal, super bomba, perfurante)
 ├── effects/          ← atlas da explosão
-├── fonts/            ← fontes (Rye, usada no logo)
+├── fonts/            ← fontes (Rye nos títulos, Pixelify Sans nos botões, Space Mono no texto)
 ├── powerups/         ← um ícone por poder (bomb_up.webp, kick.webp, ...)
 ├── skins/            ← personagens (skin1.webp, skin2.png, ...)
-├── tilesets/         ← um tema de tiles por pasta (grama, deserto, gelo, ...): veja tilesets/LEIAME.txt
-└── ui/               ← menu, ranking, relógio e o tema escuro da partida (painéis, botões, corações)
+├── tilesets/         ← um tema de tiles por pasta (floresta, deserto, gelo, ...) com autotile: veja tilesets/LEIAME.txt
+└── cti-ui/           ← kit de interface em pixel art (botões, painéis, formulários, ícones): classes cti-* em cti-ui/cti-ui.css (cores e tamanho do pixel, --px, no topo)
 ```
 
 Regra: **uma pasta por tipo de imagem**, e no `theme.json` o caminho começa pela pasta,
@@ -35,9 +35,9 @@ Formatos: PNG, SVG, GIF (sem animar), WebP. Ideal: imagens quadradas; são estic
 | `tiles.wall` | parede indestrutível (borda e pilares) |
 | `tiles.block` | bloco que explode |
 | `maps` | visual específico de um mapa, ex.: `"maps": { "volcano": { "tiles": { "floor": ["tiles/lava.png"], "wall": "tiles/rocha.png" } } }` (o que faltar usa `tiles`) |
-| `tilesets` | temas de tiles por pasta: `{ "dir": "tilesets", "themes": ["grama", ...], "maps": { "classic": "grama", ... } }`. Cada tema tem `parede` (borda), `inquebravel` (pilares), `quebravel`, `piso_a`, `piso_b` e `piso_decorado`; as mecânicas (`agua`, `escorregadio`, `esteira`, `lava`, `portal`) ficam em um tema só e valem para qualquer mapa. Tem prioridade sobre `tiles` e `maps` |
+| `tilesets` | temas de tiles por pasta, todos em autotile (veja tilesets/LEIAME.txt): `{ "dir": "tilesets", "lut": "autotile_lut.json", "themes": { "floresta": { "floors": [{ "file": "piso", "weight": 72 }, ...] }, ... }, "maps": { "classic": "floresta", ... } }`. Cada tema tem `parede_autotile.png`, `inquebravel_autotile.png`, `quebravel.png` e os pisos listados em `floors` (peso = chance de sorteio; uma tira de 8 quadros vira piso animado, com `ms` por quadro). As mecânicas animadas (água, gelo, lava, esteira, portal) ficam nos temas floresta, gelo, vulcao, industrial e magico e valem para qualquer mapa. Tem prioridade sobre `tiles` e `maps` |
 | `items.<tipo>` | imagem de cada powerup (lista abaixo) |
-| `bombs` | sprites das bombas: `normal`, `power` (super bomba), `pierce` (perfurante) e `search` (bomba de busca: quadros 0 a 2 parada, quadro 3 perseguindo). Cada um é um arquivo (`"bombs/bomb.webp"`) ou um spritesheet em uma linha: `{ "image": "bombs/bomb.png", "frames": 3, "fps": 7 }`. Os quadros são achados pela transparência (podem ter tamanhos diferentes); se a contagem não bater, usa grade uniforme com `frameWidth` e `gap`. Os quadros tocam em vai-e-vem (0,1,2,1,0…) desde que a bomba é solta. Sem `power` e `pierce`, o jogo desenha um anel laranja e espetos por cima da bomba normal. A chave antiga `bomb` (só a bomba normal) ainda vale |
+| `bombs` | sprites das bombas: `normal`, `power` (super bomba), `pierce` (perfurante) e `search` (bomba de busca: quadros 0 a 2 parada, quadro 3 perseguindo). Cada um é um arquivo (`"bombs/bomb.webp"`) ou um spritesheet em uma linha: `{ "image": "bombs/bomb.png", "frames": 3, "fps": 7 }`. Os quadros são achados pela transparência (podem ter tamanhos diferentes); se a contagem não bater, usa grade uniforme com `frameWidth` e `gap`. Os quadros tocam em vai-e-vem (0,1,2,1,0…) desde que a bomba é solta. Sem `power` e `pierce`, o jogo desenha um anel laranja e espetos por cima da bomba normal. A chave antiga `bomb` (só a bomba normal) ainda vale. A mina usa `mine` (spritesheet com os quadros da animação de armar, repetida por 2 s; depois a mina plantada aparece e esmaece em 1 s) e `minePlanted` (imagem que esmaece depois da animação e reaparece quando alguém pisa nela) |
 | `flame` | chama da explosão: uma imagem para todas as casas (`"flame.png"`) ou um atlas por direção `{ "image": "effects/explosion.png", "grid": 7 }`. No atlas, a grade `grid`×`grid` tem as peças: centro `[3,3]`, trechos de braço horizontais `h` (`[2,3]`,`[4,3]`) e verticais `v` (`[3,2]`,`[3,4]`), escolhidos por casa, e as pontas de 1 casa `left` `[1,3]`, `right` `[5,3]`, `up` `[3,1]`, `down` `[3,5]`; o campo opcional `parts` troca as células de `[coluna, linha]` de cada peça. Os bulbos largos com asas das extremidades do atlas não são usados. O servidor diz a cada casa quais lados continuam em chamas, e o cliente escolhe a peça |
 | `skins` | lista de skins de personagem (quantas quiser) — cada jogador escolhe a sua em **Mudar skin** |
 
@@ -48,7 +48,7 @@ Ids dos mapas: `classic`, `arena`, `cross`, `factory`, `diamond`, `volcano`, `bi
 `bomb_up` (+1 bomba), `fire_up` (+1 alcance), `speed_up` (velocidade), `full_fire` (alcance máximo),
 `remote` (controle remoto), `bomb_pass` (atravessa bombas), `wall_pass` (atravessa blocos),
 `kick` (chuta bombas), `glove` (luva: arremessa), `punch` (soco), `shield` (colete),
-`heart` (vida extra), `skull` (caveira/maldição), `line_bomb` (bombas em linha), `power_bomb` (super bomba), `pierce_bomb` (bomba perfurante), `search_bomb` (bomba de busca).
+`heart` (vida extra), `skull` (caveira/maldição), `line_bomb` (bombas em linha), `power_bomb` (super bomba), `pierce_bomb` (bomba perfurante), `search_bomb` (bomba de busca), `mine_bomb` (mina).
 
 ## Skins de personagem
 

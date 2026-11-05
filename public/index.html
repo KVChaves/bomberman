@@ -4,29 +4,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>CTI Bombers</title>
+  <link rel="stylesheet" href="assets/cti-ui/cti-ui.css">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="cti-screen cti-cursor">
   <div id="conn" class="hidden">Conectando…</div>
   <div id="netStatus" class="off"></div>
-  <div id="toast" class="hidden"></div>
+  <div id="toast" class="cti-toast hidden"></div>
 
   <!-- ===== Tela inicial ===== -->
   <section id="screen-title" class="screen">
-    <nav class="title-menu menu-sign" aria-label="Menu principal">
-      <button id="btnSingle" aria-label="Singleplayer"></button>
-      <button id="btnMulti" aria-label="Multiplayer"></button>
-      <button id="btnSkin" aria-label="Personagens"></button>
-      <button id="btnRanking" aria-label="Ranking"></button>
-    </nav>
-    <h1 class="logo"><span>CTI</span> BOMBERS</h1>
-    <p class="tagline">Explosões entre amigos</p>
+    <div class="title-menu">
+      <nav class="cti-panel cti-panel--planks" aria-label="Menu principal">
+        <button id="btnSingle" class="cti-btn cti-btn--gold cti-btn--block"><img src="assets/cti-ui/assets/icons/play.png" alt="">Singleplayer</button>
+        <button id="btnMulti" class="cti-btn cti-btn--block"><img src="assets/cti-ui/assets/icons/users.png" alt="">Multiplayer</button>
+        <button id="btnSkin" class="cti-btn cti-btn--block"><img src="assets/cti-ui/assets/icons/star.png" alt="">Personagens</button>
+        <button id="btnRanking" class="cti-btn cti-btn--block"><img src="assets/cti-ui/assets/icons/trophy.png" alt="">Ranking</button>
+      </nav>
+    </div>
+    <h1 class="cti-title logo"><span class="accent">CTI</span> BOMBERS</h1>
+    <p class="cti-subtitle">Explosões entre amigos</p>
 
-    <aside id="rankPanel" class="panel hidden">
-      <button id="rankClose" class="rank-close" aria-label="Fechar ranking" title="Fechar">✖</button>
-      <h2>🏆 Ranking geral</h2>
+    <aside id="rankPanel" class="cti-panel hidden">
+      <button id="rankClose" class="cti-btn cti-btn--red cti-btn--sm cti-btn--icon rank-close" aria-label="Fechar ranking" title="Fechar"><img src="assets/cti-ui/assets/icons/close.png" alt=""></button>
+      <h2 class="cti-heading"><img src="assets/cti-ui/assets/icons/trophy.png" alt="">Ranking geral</h2>
       <div class="rank-scroll">
-        <table id="historyTable">
+        <table id="historyTable" class="cti-table">
           <thead><tr><th>#</th><th>Jogador</th><th class="num" title="Pontos totais">Pts</th><th class="num" title="Média de pontos por jogo">Média</th><th class="num" title="Partidas vencidas">Vit.</th><th class="num" title="Rodadas vencidas">Rod.</th><th class="num" title="Jogadores eliminados com as suas bombas">Elim.</th><th class="num" title="Partidas jogadas">Jogos</th></tr></thead>
           <tbody></tbody>
         </table>
@@ -36,89 +39,102 @@
 
   <!-- ===== Escolher skin ===== -->
   <section id="screen-skin" class="screen hidden">
-    <h1 class="logo small">Personagens</h1>
-    <div id="nameRow" class="panel">
+    <h1 class="cti-title cti-title--md">Personagens</h1>
+    <div id="nameRow" class="cti-panel">
       <canvas id="skinMini" width="28" height="28" title="Seu personagem"></canvas>
-      <input id="playerName" maxlength="12" placeholder="Seu nome" autocomplete="off" aria-label="Seu nome">
+      <input id="playerName" class="cti-input" maxlength="12" placeholder="Seu nome" autocomplete="off" aria-label="Seu nome">
     </div>
     <div id="skinGrid"></div>
-    <div id="skinUpload" class="panel hidden">
-      <input id="upFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
-      <input id="upName" maxlength="16" placeholder="Nome da skin" autocomplete="off">
-      <div class="row"><button id="upSend">Salvar</button><button id="upCancel" class="ghost">Cancelar</button></div>
+    <div id="skinUpload" class="cti-panel hidden">
+      <input id="upFile" class="cti-input" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+      <input id="upName" class="cti-input" maxlength="16" placeholder="Nome da skin" autocomplete="off">
+      <div class="row"><button id="upSend" class="cti-btn cti-btn--gold"><img src="assets/cti-ui/assets/icons/check.png" alt="">Salvar</button><button id="upCancel" class="cti-btn">Cancelar</button></div>
     </div>
-    <div class="row"><button id="skinBack">Voltar</button></div>
+    <div class="row"><button id="skinBack" class="cti-btn cti-btn--gold"><img src="assets/cti-ui/assets/icons/back.png" alt="">Voltar</button></div>
   </section>
 
   <!-- ===== Singleplayer ===== -->
   <section id="screen-single" class="screen hidden">
-    <h1 class="logo small">Singleplayer</h1>
-    <div class="panel form" id="singleForm"></div>
-    <div class="row"><button id="singlePlay">Jogar</button><button id="singleBack" class="ghost">Voltar</button></div>
+    <h1 class="cti-title cti-title--md">Singleplayer</h1>
+    <div class="cti-panel form" id="singleForm"></div>
+    <div class="row"><button id="singlePlay" class="cti-btn cti-btn--gold"><img src="assets/cti-ui/assets/icons/play.png" alt="">Jogar</button><button id="singleBack" class="cti-btn">Voltar</button></div>
   </section>
 
   <!-- ===== Multiplayer ===== -->
   <section id="screen-multi" class="screen hidden">
-    <h1 class="logo small">Multiplayer</h1>
-    <div class="panel wide">
-      <h2>Salas abertas</h2>
-      <table id="roomTable">
+    <h1 class="cti-title cti-title--md">Multiplayer</h1>
+    <div class="cti-panel wide">
+      <h2 class="cti-heading"><img src="assets/cti-ui/assets/icons/users.png" alt="">Salas abertas</h2>
+      <table id="roomTable" class="cti-table">
         <thead><tr><th>Sala</th><th>Gerente</th><th>Jogadores</th><th>Mapa</th><th>Situação</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
-      <p id="noRooms" class="note">Nenhuma sala aberta. Crie a primeira!</p>
+      <p id="noRooms" class="cti-label note">Nenhuma sala aberta. Crie a primeira!</p>
     </div>
-    <div class="panel form hidden" id="createForm"></div>
+    <div class="cti-panel form hidden" id="createForm"></div>
     <div class="row">
-      <button id="btnCreate">Criar sala</button>
-      <button id="createConfirm" class="hidden">Criar</button>
-      <button id="multiBack" class="ghost">Voltar</button>
+      <button id="btnCreate" class="cti-btn cti-btn--gold"><img src="assets/cti-ui/assets/icons/plus.png" alt="">Criar sala</button>
+      <button id="createConfirm" class="cti-btn cti-btn--gold hidden"><img src="assets/cti-ui/assets/icons/check.png" alt="">Criar</button>
+      <button id="multiBack" class="cti-btn">Voltar</button>
     </div>
   </section>
 
   <!-- ===== Sala / partida ===== -->
   <section id="screen-game" class="screen hidden">
     <main>
-        <section id="chat" aria-label="Chat da sala">
+        <section id="chat" class="cti-panel cti-panel--iron" aria-label="Chat da sala">
+          <h2 class="cti-heading"><img src="assets/cti-ui/assets/icons/chat.png" alt="">Chat</h2>
           <ul id="chatLog"></ul>
           <form id="chatForm" autocomplete="off">
-            <input id="chatInput" maxlength="200" placeholder="Escreva uma mensagem (Enter para falar)" aria-label="Mensagem">
-            <button type="submit">Enviar</button>
+            <input id="chatInput" class="cti-input" maxlength="200" placeholder="Escreva uma mensagem (Enter para falar)" aria-label="Mensagem">
+            <button type="submit" class="cti-btn cti-btn--gold cti-btn--sm cti-btn--block"><img src="assets/cti-ui/assets/icons/chat.png" alt="">Enviar</button>
           </form>
         </section>
       <div id="playCol">
-        <div id="myPowers"></div>
+        <div id="myPowers" class="cti-panel cti-panel--iron"></div>
         <div id="stage">
           <canvas id="game"></canvas>
-          <div id="banner" class="hidden"></div>
-          <div id="curseMsg" class="hidden"></div>
-          <div id="shieldTimer" class="hidden"></div>
+          <div id="banner" class="cti-toast hidden"></div>
+          <div id="curseMsg" class="cti-toast hidden"></div>
+          <div id="shieldTimer" class="cti-toast hidden"></div>
           <div id="overlay">
-            <div id="roundTitle" class="hidden"></div>
+            <div id="roundTitle" class="cti-plaque hidden"></div>
             <div id="msg"></div>
-            <div id="lobbyBox" class="panel">
-              <div id="roomTitle"></div>
+            <div id="lobbyBox" class="cti-panel cti-panel--paper">
+              <h2 id="roomTitle" class="cti-heading"></h2>
               <div id="roomSettings" class="form"></div>
               <ul id="lobbyList"></ul>
-              <div class="row hidden" id="botRow"><button id="addBotBtn" class="ghost">+ Bot</button><button id="rmBotBtn" class="ghost">− Bot</button></div>
-              <div class="row"><button id="readyBtn">Pronto!</button><button id="skinBtn" class="ghost">Trocar skin</button><button id="leaveBtn" class="ghost">Sair</button></div>
+              <div class="row hidden" id="botRow"><button id="addBotBtn" class="cti-btn cti-btn--iron cti-btn--sm"><img src="assets/cti-ui/assets/icons/plus.png" alt="">Bot</button><button id="rmBotBtn" class="cti-btn cti-btn--iron cti-btn--sm"><img src="assets/cti-ui/assets/icons/minus.png" alt="">Bot</button></div>
+              <div class="row"><button id="readyBtn" class="cti-btn cti-btn--green">Pronto!</button><button id="skinBtn" class="cti-btn cti-btn--cream">Trocar skin</button><button id="leaveBtn" class="cti-btn cti-btn--red">Sair</button></div>
             </div>
-            <table id="finalTable" class="hidden"></table>
+            <table id="finalTable" class="cti-table hidden"></table>
             <div id="finalRow" class="hidden">
               <div id="finalStatus"></div>
-              <div class="row"><button id="rematchBtn">Pronto para nova partida</button><button id="finalLeaveBtn" class="ghost">Sair</button></div>
+              <div class="row"><button id="rematchBtn" class="cti-btn cti-btn--green">Pronto para nova partida</button><button id="finalLeaveBtn" class="cti-btn cti-btn--red">Sair</button></div>
             </div>
           </div>
         </div>
       </div>
       <aside id="hud">
         <div id="topBar">
-          <div id="timeInfo"></div>
-          <div id="roundInfo"></div>
+          <div id="timeInfo" class="cti-plaque cti-plaque--sm"></div>
+          <div id="roundInfo" class="cti-plaque cti-plaque--sm cti-plaque--num"></div>
         </div>
-        <table id="scoreTable"></table>
-        <details id="legend" open><summary>O que cada poder faz</summary><ul id="legendList"></ul></details>
-        <button id="leaveBtn2" class="ghost">Sair da sala</button>
+        <div id="scorePanel" class="cti-panel cti-panel--iron"><table id="scoreTable" class="cti-table"></table></div>
+        <div id="controls" class="cti-panel cti-panel--iron">
+          <h2 class="cti-heading"><img src="assets/cti-ui/assets/icons/bomb.png" alt="">Controles</h2>
+          <ul>
+            <li><span class="keys"><span class="cti-key">W</span><span class="cti-key">A</span><span class="cti-key">S</span><span class="cti-key">D</span></span><span>Andar (ou setas)</span></li>
+            <li><span class="keys"><span class="cti-key">Espaço</span></span><span>Soltar bomba</span></li>
+            <li><span class="keys"><span class="cti-key">Z</span><span class="cti-key">Shift</span></span><span>Detonar (controle remoto)</span></li>
+            <li><span class="keys"><span class="cti-key">Ctrl</span></span><span>Passa-bomba liga/desliga</span></li>
+            <li><span class="keys"><span class="cti-key">C</span></span><span>Plantar mina</span></li>
+            <li><span class="keys"><span class="cti-key">X</span></span><span>Bomba de busca</span></li>
+            <li><span class="keys"><span class="cti-key">Enter</span></span><span>Falar no chat</span></li>
+          </ul>
+        </div>
+        <details id="legend" class="cti-panel cti-panel--iron"><summary>O que cada poder faz</summary><ul id="legendList"></ul></details>
+        <button id="leaveBtn2" class="cti-btn cti-btn--red cti-btn--block">Sair da sala</button>
       </aside>
     </main>
   </section>
@@ -126,9 +142,11 @@
   <div id="touch" class="hidden" aria-hidden="true">
     <div id="stick"><div id="knob"></div></div>
     <div id="touchBtns">
-      <button type="button" id="tDet" class="ghost">Detonar</button>
-      <button type="button" id="tPass" class="ghost">Passar</button>
-      <button type="button" id="tBomb">Bomba</button>
+      <button type="button" id="tMine" class="cti-btn cti-btn--iron cti-btn--sm hidden">Mina</button>
+      <button type="button" id="tSearch" class="cti-btn cti-btn--iron cti-btn--sm hidden">Busca</button>
+      <button type="button" id="tDet" class="cti-btn cti-btn--iron cti-btn--sm">Detonar</button>
+      <button type="button" id="tPass" class="cti-btn cti-btn--iron cti-btn--sm">Passar</button>
+      <button type="button" id="tBomb" class="cti-btn cti-btn--gold cti-btn--lg"><img src="assets/cti-ui/assets/icons/bomb.png" alt="">Bomba</button>
     </div>
   </div>
 

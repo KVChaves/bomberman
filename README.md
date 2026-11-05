@@ -25,12 +25,12 @@ Se os amigos não conseguirem conectar, libere a porta 8000 (TCP) no firewall do
 - Só pontuam partidas multiplayer com **3 ou mais jogadores humanos**. Com N jogadores: cada rodada vencida dá **N − 2** pontos e quem vence a partida ganha mais **2 × (N − 2)**. Partidas com 1 ou 2 jogadores não dão pontos.
 
 ## Controles
-Setas ou WASD para andar, **espaço** para soltar bomba, **E** ou **Shift** para detonar bombas remotas.
+Setas ou WASD para andar, **espaço** para soltar bomba, **Z** ou **Shift** para detonar bombas remotas, **C** para plantar uma mina (powerup de mina) e **X** para soltar a bomba de busca (powerup de busca).
 
 ## Powerups
 💣 bomba extra · 🔥 fogo (+alcance) · 👟 velocidade · 💥 fogo total · 📡 controle remoto · 👻 passa-bomba · 🧱 passa-bloco ·
 🥾 chute · 🧤 luva (arremessa a bomba em que está) · 👊 soco · 🛡️ colete (absorve uma explosão e quebra; não some com o tempo) · ❤️ vida extra ·
-💀 caveira (maldição por 10 s) · ➡️ bombas em linha · ☢️ super bomba.
+💀 caveira (maldição por 10 s) · ➡️ bombas em linha · ☢️ super bomba · 🔱 bomba perfurante · 🎯 bomba de busca (tecla **X**) · 🪤 mina (tecla **C**: aparece armando por 2 s, esmaece por 1 s e some, e explode 1 s depois de alguém pisar; cada powerup dá mais uma mina ao mesmo tempo).
 
 ## Mapas
 26 fases: Clássico, Arena Aberta, Quadrantes, Fábrica, Diamante, Vulcão, Campo Grande, Labirinto, Torres, Fortaleza e duas com mecânicas especiais:

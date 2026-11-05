@@ -9,44 +9,243 @@
   "maps": {},
   "tilesets": {
     "dir": "tilesets",
-    "themes": [
-      "grama",
-      "deserto",
-      "gelo",
-      "industrial",
-      "vulcao",
-      "cristal",
-      "magico",
-      "masmorra",
-      "fortaleza"
-    ],
+    "lut": "autotile_lut.json",
+    "themes": {
+      "floresta": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_flores",
+            "weight": 12
+          },
+          {
+            "file": "piso_pedras",
+            "weight": 10
+          },
+          {
+            "file": "piso_tufos",
+            "weight": 6
+          }
+        ]
+      },
+      "deserto": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_ondas",
+            "weight": 12
+          },
+          {
+            "file": "piso_ossos",
+            "weight": 10
+          },
+          {
+            "file": "piso_pedras",
+            "weight": 6
+          }
+        ]
+      },
+      "gelo": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_pedras",
+            "weight": 12
+          },
+          {
+            "file": "piso_rachadura",
+            "weight": 10
+          },
+          {
+            "file": "piso_tufos",
+            "weight": 6
+          }
+        ]
+      },
+      "industrial": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_grade",
+            "weight": 12
+          },
+          {
+            "file": "piso_oleo",
+            "weight": 10
+          },
+          {
+            "file": "piso_pedras",
+            "weight": 6
+          }
+        ]
+      },
+      "vulcao": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 70
+          },
+          {
+            "file": "piso_pedras",
+            "weight": 14
+          },
+          {
+            "file": "piso_cinzas",
+            "weight": 12
+          },
+          {
+            "file": "piso_rachadura_anim",
+            "weight": 4,
+            "ms": 140
+          }
+        ]
+      },
+      "cristal": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_cristais",
+            "weight": 12
+          },
+          {
+            "file": "piso_pedras",
+            "weight": 10
+          },
+          {
+            "file": "piso_rachadura",
+            "weight": 6
+          }
+        ]
+      },
+      "magico": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_estrelas",
+            "weight": 12
+          },
+          {
+            "file": "piso_pedras",
+            "weight": 10
+          },
+          {
+            "file": "piso_runa",
+            "weight": 6
+          }
+        ]
+      },
+      "masmorra": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_lajota",
+            "weight": 12
+          },
+          {
+            "file": "piso_ossos",
+            "weight": 10
+          },
+          {
+            "file": "piso_poca",
+            "weight": 6
+          }
+        ]
+      },
+      "fortaleza": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_lajota",
+            "weight": 12
+          },
+          {
+            "file": "piso_rachadura",
+            "weight": 10
+          },
+          {
+            "file": "piso_tufos",
+            "weight": 6
+          }
+        ]
+      },
+      "pantano": {
+        "floors": [
+          {
+            "file": "piso",
+            "weight": 72
+          },
+          {
+            "file": "piso_tufos",
+            "weight": 14
+          },
+          {
+            "file": "piso_pedrinhas",
+            "weight": 9
+          },
+          {
+            "file": "piso_poca",
+            "weight": 5
+          }
+        ]
+      }
+    },
     "maps": {
-      "classic": "grama",
-      "big": "grama",
-      "maze": "grama",
-      "bastions": "grama",
-      "columns": "grama",
-      "rings": "grama",
-      "grid3": "grama",
-      "converge": "grama",
-      "teleport": "grama",
-      "river": "grama",
-      "open": "grama",
+      "classic": "floresta",
       "arena": "deserto",
-      "walls": "deserto",
       "cross": "gelo",
-      "ice": "gelo",
-      "ice_stripes": "gelo",
       "factory": "industrial",
-      "belt": "industrial",
-      "belts_parallel": "industrial",
-      "towers": "industrial",
-      "volcano": "vulcao",
-      "lava": "vulcao",
       "diamond": "cristal",
+      "big": "floresta",
       "portals": "magico",
+      "belt": "industrial",
+      "maze": "floresta",
+      "towers": "industrial",
+      "fortress": "fortaleza",
+      "columns": "floresta",
+      "rings": "floresta",
+      "grid3": "floresta",
+      "converge": "floresta",
+      "teleport": "floresta",
+      "river": "floresta",
+      "ice": "gelo",
+      "open": "floresta",
+      "walls": "deserto",
+      "ice_stripes": "gelo",
       "chambers": "masmorra",
-      "fortress": "fortaleza"
+      "belts_parallel": "industrial",
+      "bastions": "floresta",
+      "lava": "vulcao",
+      "lava_ring": "vulcao",
+      "lava_bridges": "vulcao",
+      "pinwheel": "industrial",
+      "dimensions": "magico",
+      "rink": "gelo",
+      "swamp": "pantano",
+      "ice_cross": "gelo"
     }
   },
   "items": {
@@ -66,12 +265,14 @@
     "line_bomb": "powerups/line_bomb.webp",
     "power_bomb": "powerups/power_bomb.webp",
     "pierce_bomb": "powerups/pierce_bomb.webp",
-    "search_bomb": "powerups/search_bomb.webp"
+    "search_bomb": "powerups/search_bomb.webp",
+    "mine_bomb": "powerups/mine.webp"
   },
   "bombs": {
     "normal": {
       "image": "bombs/bomb.png",
       "frames": 3,
+      "frameWidth": 16,
       "fps": 7
     },
     "power": {
@@ -82,14 +283,21 @@
     "pierce": {
       "image": "bombs/pierce_bomb.png",
       "frames": 3,
+      "frameWidth": 16,
       "fps": 7
     },
     "search": {
       "image": "bombs/search_bomb.png",
       "frames": 4,
-      "frameWidth": 221,
+      "frameWidth": 16,
       "fps": 7
-    }
+    },
+    "mine": {
+      "image": "bombs/mine.png",
+      "frames": 4,
+      "frameWidth": 14
+    },
+    "minePlanted": "bombs/mine_planted.png"
   },
   "death": {
     "image": "effects/death.png",

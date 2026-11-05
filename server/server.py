@@ -252,13 +252,11 @@ class Skins:
         self._save()
         return skin, None
 
-    def remove(self, owner, sid):
-        """Só quem enviou (mesmo nome) apaga a skin; devolve uma mensagem de erro ou None."""
+    def remove(self, sid):
+        """Qualquer jogador apaga qualquer skin enviada; devolve uma mensagem de erro ou None."""
         s = next((s for s in self.items if s["id"] == sid), None)
         if s is None:
             return "Skin não encontrada."
-        if not s["owner"] or s["owner"].lower() != str(owner or "").strip().lower():
-            return "Só quem enviou a skin pode apagá-la."
         self.items.remove(s)
         self._save()
         if STORE:
@@ -408,7 +406,7 @@ class Hub:
             if skin:
                 c.send({"t": "skin_added", "id": skin["id"]})
         else:
-            err = self.skins.remove(m.get("owner"), m.get("id"))
+            err = self.skins.remove(m.get("id"))
         if err:
             c.send({"t": "error", "msg": err})
             return

@@ -13,7 +13,6 @@ const MAP_STYLE = {
   cross: { floor: ["#aee0ee", "#9fd5e6"], wall: ["#5d7f9a", "#8fb2cc", "#3c566b"], block: ["#e8f6fb", "#7fb2c8"] },
   factory: { floor: ["#5a5f68", "#51565f"], wall: ["#2d3138", "#4a505b", "#1a1d22"], block: ["#d1a032", "#7b5d13"] },
   diamond: { floor: ["#3b2f5c", "#43366a"], wall: ["#7b5cc4", "#a98cf0", "#4a3487"], block: ["#e86aa8", "#8a2f63"] },
-  volcano: { floor: ["#4a2a24", "#52302a"], wall: ["#22181a", "#3d2c2f", "#0e0a0b"], block: ["#ff7a2e", "#a63d0a"] },
   big: { floor: ["#4c9a3f", "#55a548"], wall: ["#5b6270", "#7e879a", "#3a3f4a"], block: ["#c28a47", "#85552a"] },
   portals: { floor: ["#2b3a67", "#324273"], wall: ["#6c5ce7", "#a29bfe", "#3b2f8f"], block: ["#74b9ff", "#2d6cb3"] },
   belt: { floor: ["#6b6f78", "#62666f"], wall: ["#3a3d44", "#565a63", "#22242a"], block: ["#e5a634", "#8a5f12"] },
@@ -26,6 +25,7 @@ const MAP_STYLE = {
   chambers: { floor: ["#5b4a6b", "#63527a"], wall: ["#2c2438", "#4d4262", "#171221"], block: ["#d9a441", "#80571a"] },
   belts_parallel: { floor: ["#5f646d", "#575c65"], wall: ["#30343b", "#4d525c", "#1b1e23"], block: ["#e0a93c", "#855c12"] },
   bastions: { floor: ["#6a8a4a", "#719253"], wall: ["#5a5f6b", "#858c9c", "#363a44"], block: ["#b87a3f", "#6f4521"] },
+  swamp: { floor: ["#2f5a2b", "#34602f"], wall: ["#3c4a44", "#5d7066", "#1f2824"], block: ["#a8683a", "#6a3f1d"] },
   lava: { floor: ["#3a2a2a", "#412f2f"], wall: ["#22181a", "#3d2c2f", "#0e0a0b"], block: ["#8a6a52", "#4d3826"] },
 };
 
@@ -35,7 +35,7 @@ const ITEMS = {
   fire_up: ["#e67e22", "🔥", "Fogo", "+1 de alcance da explosão"],
   speed_up: ["#16a085", "👟", "Velocidade", "Anda mais rápido"],
   full_fire: ["#c0392b", "💥", "Fogo total", "Alcance máximo"],
-  remote: ["#2980b9", "📡", "Controle remoto", "Suas bombas só explodem quando você aperta E ou Shift"],
+  remote: ["#2980b9", "📡", "Controle remoto", "Suas bombas só explodem quando você aperta Z ou Shift"],
   bomb_pass: ["#7f8c8d", "👻", "Passa-bomba", "Atravessa bombas. CTRL liga e desliga (desligado, chutar e socar bombas funciona)"],
   wall_pass: ["#a0522d", "🧱", "Passa-bloco", "Atravessa blocos destrutíveis"],
   kick: ["#d35400", "🥾", "Chute", "Ande contra uma bomba para chutá-la"],
@@ -46,7 +46,8 @@ const ITEMS = {
   skull: ["#2d3436", "💀", "Caveira", "Maldição aleatória por 10 s (lento, rápido, sem bombas, bombas automáticas, controles invertidos…). Encoste em outro jogador para passá-la!"],
   line_bomb: ["#f39c12", "➡️", "Bombas em linha", "Solta todas as bombas de uma vez em linha"],
   pierce_bomb: ["#3b82c4", "🔱", "Bomba perfurante", "O fogo das suas bombas atravessa blocos e bombas; só as paredes o param"],
-  search_bomb: ["#2f3f8f", "🎯", "Bomba de busca", "Sua primeira bomba fica parada; quando um adversário chega a 3 casas ela o persegue e explode em cerca de 3 segundos. As seguintes são bombas comuns"],
+  search_bomb: ["#2f3f8f", "🎯", "Bomba de busca", "Tecla X solta uma bomba que fica parada; quando um adversário chega a 3 casas ela o persegue e explode em cerca de 3 segundos. Uma por vez"],
+  mine_bomb: ["#4a5a7a", "🪤", "Mina", "Tecla C planta uma mina: ela aparece armando por 2 segundos, esmaece por mais 1 e fica invisível. Quem pisar nela a revela e ela explode em 1 segundo. Cada powerup permite uma mina a mais ao mesmo tempo"],
   power_bomb: ["#6c5ce7", "☢️", "Super bomba", "Sua primeira bomba tem alcance máximo, mas só uma por vez: ela precisa explodir para a próxima aparecer"],
 };
 const ITEM_ALIAS = { bomb: "bomb_up", range: "fire_up", speed: "speed_up" }; // nomes antigos do theme.json
@@ -69,7 +70,7 @@ function sizeCanvas() { canvas.width = W * TILE; canvas.height = H * TILE; ctx.i
 
 // ---------- assets / tema (veja public/assets/LEIAME.md) ----------
 const BOMB_FUSE = 2.0; // mesmo valor do servidor: serve para animar a bomba desde que foi solta
-const A = { death: null, pixelArt: false, tileset: null, tilesets: { default: { floor: [], wall: null, block: null } }, items: {}, bomb: null, bombPower: null, bombPierce: null, bombSearch: null, flame: null, flameSheet: null };
+const A = { death: null, pixelArt: false, tileset: null, tilesets: { default: { floor: [], wall: null, block: null } }, items: {}, bomb: null, bombPower: null, bombPierce: null, bombSearch: null, mine: null, minePlanted: null, flame: null, flameSheet: null };
 let SKINS = []; // skins do tema, pelo número: {color, sheet?}
 let CUSTOM = []; // skins enviadas pelos jogadores (lista do servidor): {id, file, name, owner}
 const customLoaded = {}; // id → skin pronta para desenhar
@@ -84,33 +85,60 @@ function loadImg(src, base = "assets/") {
   });
 }
 
-// tilesets por tema (assets/tilesets/<tema>/): parede (borda do mapa), inquebravel (pilares), quebravel, piso_a, piso_b e piso_decorado,
-// mais mecânicas que ficam em um tema só mas valem para qualquer mapa: agua (grama), escorregadio (gelo), esteira (industrial), lava (vulcao), portal (magico)
-const TILESET_FILES = ["parede", "inquebravel", "quebravel", "piso_a", "piso_b", "piso_decorado"];
-const TILESET_EXTRA = { agua: "grama", escorregadio: "gelo", esteira: "industrial", lava: "vulcao", portal: "magico" };
+// tilesets por tema (assets/tilesets/<tema>/): parede (borda do mapa) e inquebravel (pilares) em autotile de 47 peças, quebravel e pisos sem emenda.
+// A folha do autotile tem 8x6 peças de 16x16; a peça de cada casa vem da máscara dos 8 vizinhos do mesmo tipo (autotile_lut.json, igual para todos os temas).
+// As mecânicas animadas ficam em um tema só mas valem para qualquer mapa: agua (floresta), escorregadio (gelo), lava (vulcao) em autotile de 8 quadros de 128x96
+// lado a lado, e esteira (industrial, uma tira por direção) e portal (magico) em tiras de 8 quadros 16x16.
+const AUTOTILE_BITS = [[0, -1, 1], [1, -1, 2], [1, 0, 4], [1, 1, 8], [0, 1, 16], [-1, 1, 32], [-1, 0, 64], [-1, -1, 128]]; // N NE E SE S SW W NW
+const AUTOTILE_BLOCK = 128; // largura de um quadro do autotile animado
+const TILE_MECHANICS = {
+  agua: ["floresta", "agua_autotile_anim", 150, true],
+  escorregadio: ["gelo", "escorregadio_autotile_anim", 110, true],
+  lava: ["vulcao", "lava_autotile_anim", 140, true],
+  portal: ["magico", "portal_anim", 90],
+  esteira_r: ["industrial", "esteira_direita_anim", 60],
+  esteira_l: ["industrial", "esteira_esquerda_anim", 60],
+  esteira_u: ["industrial", "esteira_cima_anim", 60],
+  esteira_d: ["industrial", "esteira_baixo_anim", 60],
+};
 
-const TILE_ANIM_MS = { esteira: 60, agua: 150, escorregadio: 110, portal: 90, lava: 140 }; // ms por quadro (tilesets/LEIAME.txt)
-// desenha o tile de mecânica (animado ou parado) na casa atual do contexto, que já deve estar posicionado
-function drawExtraTile(t, x, y, w, h, now) {
+// tira de quadros 16x16 lado a lado (ou mais de um tipo de quadro por imagem): { img, frames, ms }
+const strip = (img, ms, frames) => img && { img, frames: frames || Math.max(1, Math.round(img.width / img.height)), ms };
+
+// desenha o quadro atual de uma tira na casa (x, y) em pixels do canvas
+function drawStrip(t, x, y, now) {
   const fw = t.img.width / t.frames, f = t.frames > 1 ? Math.floor(now / t.ms) % t.frames : 0;
-  ctx.drawImage(t.img, f * fw, 0, fw, t.img.height, x, y, w, h);
+  ctx.drawImage(t.img, f * fw, 0, fw, t.img.height, x, y, TILE, TILE);
+}
+
+// autotile: `same(gx, gy)` diz se a casa vizinha é do mesmo tipo; `t` é { img, frames, ms } (animado) ou { img } (parado)
+function drawAutoTile(t, same, gx, gy, now) {
+  let mask = 0;
+  for (const [dx, dy, bit] of AUTOTILE_BITS) if (same(gx + dx, gy + dy)) mask |= bit;
+  const i = A.tileset.lut[mask], f = t.frames > 1 ? Math.floor(now / t.ms) % t.frames : 0;
+  ctx.drawImage(t.img, f * AUTOTILE_BLOCK + (i % 8) * 16, Math.floor(i / 8) * 16, 16, 16, gx * TILE, gy * TILE, TILE, TILE);
 }
 
 async function loadTilesets(cfg) {
   const dir = (cfg.dir || "tilesets").replace(/\/$/, "");
+  let lut = null;
+  try { lut = await (await fetch(`assets/${dir}/${cfg.lut || "autotile_lut.json"}`)).json(); } catch { /* sem a tabela: cai no desenho padrão */ }
+  if (!lut) return null;
   const themes = {};
-  await Promise.all((cfg.themes || []).map(async (name) => {
-    const imgs = await Promise.all(TILESET_FILES.map((f) => loadImg(`${dir}/${name}/${f}.png`)));
-    themes[name] = Object.fromEntries(TILESET_FILES.map((f, i) => [f, imgs[i]]));
+  await Promise.all(Object.entries(cfg.themes || {}).map(async ([name, def]) => {
+    const [parede, inquebravel, quebravel] = await Promise.all(["parede_autotile", "inquebravel_autotile", "quebravel"].map((f) => loadImg(`${dir}/${name}/${f}.png`)));
+    const floors = await Promise.all((def.floors || []).map(async (f) => {
+      const img = await loadImg(`${dir}/${name}/${f.file}.png`);
+      return img && { weight: f.weight || 1, ...strip(img, f.ms || 140, img.width > img.height ? undefined : 1) }; // tira animada (largura > altura) ou imagem única
+    }));
+    if (parede && inquebravel && quebravel && floors.length && floors.every(Boolean)) themes[name] = { parede, inquebravel, quebravel, floors, total: floors.reduce((a, f) => a + f.weight, 0) };
   }));
-  const extra = {};
-  await Promise.all(Object.entries(TILESET_EXTRA).map(async ([f, name]) => {
-    const anim = await loadImg(`${dir}/animacoes/${f}_anim.png`); // tira de 8 quadros 16x16 (se existir); senão o tile parado do tema
-    if (anim) { extra[f] = { img: anim, frames: Math.max(1, Math.round(anim.width / anim.height)), ms: TILE_ANIM_MS[f] || 120 }; return; }
-    const img = await loadImg(`${dir}/${name}/${f}.png`);
-    extra[f] = img && { img, frames: 1, ms: 0 };
+  const mech = {};
+  await Promise.all(Object.entries(TILE_MECHANICS).map(async ([k, [theme, file, ms, auto]]) => {
+    const img = await loadImg(`${dir}/${theme}/${file}.png`);
+    mech[k] = auto ? strip(img, ms, img && Math.round(img.width / AUTOTILE_BLOCK)) : strip(img, ms);
   }));
-  return { themes, extra, maps: cfg.maps || {} };
+  return { themes, mech, lut, maps: cfg.maps || {} };
 }
 
 async function loadTileset(t = {}) {
@@ -442,6 +470,8 @@ async function loadTheme() {
   A.bombPower = await loadBombSheet(bombs.power);
   A.bombPierce = await loadBombSheet(bombs.pierce);
   A.bombSearch = await loadBombSheet(bombs.search);
+  A.mine = await loadBombSheet(bombs.mine); // mina: animação de armar (quadros do spritesheet) e a plaquinha que reaparece quando pisam nela
+  A.minePlanted = await loadBombSheet(bombs.minePlanted);
   A.flame = typeof t.flame === "string" ? await loadImg(t.flame) : null; // imagem única para todas as casas em chamas
   A.flameSheet = t.flame && typeof t.flame === "object" ? await loadFlameSheet(t.flame) : null; // atlas com peças por direção
   const defs = t.skins || t.players || [];
@@ -590,9 +620,14 @@ addEventListener("keydown", (e) => {
     if (!e.repeat) send({ t: "pass" });
     return;
   }
-  if (e.code === "KeyE" || e.code === "ShiftLeft" || e.code === "ShiftRight") {
+  if (e.code === "KeyZ" || e.code === "ShiftLeft" || e.code === "ShiftRight") {
     e.preventDefault();
     if (!e.repeat) send({ t: "det" });
+    return;
+  }
+  if (e.code === "KeyC" || e.code === "KeyX") { // C = mina, X = bomba de busca
+    e.preventDefault();
+    if (!e.repeat) send({ t: e.code === "KeyC" ? "mine" : "search" });
     return;
   }
   const d = KEYS[e.code];
@@ -630,7 +665,7 @@ if (TOUCH) {
   stick.addEventListener("pointerup", release);
   stick.addEventListener("pointercancel", release);
   const tap = (id, msg) => $(id).addEventListener("pointerdown", (e) => { e.preventDefault(); send({ t: msg }); });
-  tap("tBomb", "bomb"); tap("tDet", "det"); tap("tPass", "pass");
+  tap("tBomb", "bomb"); tap("tDet", "det"); tap("tPass", "pass"); tap("tMine", "mine"); tap("tSearch", "search");
   document.addEventListener("contextmenu", (e) => { if (screen === "game") e.preventDefault(); });
 }
 
@@ -704,8 +739,7 @@ function buildSkinGrid() {
   if (skinRoomMode && S) for (const p of S.players) if (p.id !== myId && p.connected) takenBy[p.skin] = p.name;
   const current = me ? me.skin : mySkin; // na sala vale a skin que o servidor realmente deu
   // o servidor manda o estado 30x por segundo: refazer os cartões a cada um faria o clique se perder
-  const myName = $("playerName").value.trim().toLowerCase();
-  const key = JSON.stringify([takenBy, current, SKINS.length, CUSTOM, skinRoomMode, myName]);
+  const key = JSON.stringify([takenBy, current, SKINS.length, CUSTOM, skinRoomMode]);
   if (key === skinGridKey && grid.children.length) return;
   skinGridKey = key;
   const cards = allSkins().map((k) => {
@@ -713,21 +747,21 @@ function buildSkinGrid() {
     drawCharacter(c.getContext("2d"), skinOf(k), "d", 40, 46, 72, false, 0);
     const taken = takenBy[k];
     const info = isCustom(k) ? CUSTOM.find((x) => x.id === k) : null;
-    const card = el("div", { className: "skin" + (k === current ? " sel" : "") + (taken ? " taken" : ""), title: taken ? `Em uso por ${taken}` : "" },
+    const card = el("div", { className: "skin cti-panel" + (k === current ? " cti-panel--paper sel" : "") + (taken ? " taken" : ""), title: taken ? `Em uso por ${taken}` : "" },
       c, taken ? `${skinName(k)} (${taken})` : skinName(k));
     if (info && info.owner) card.append(el("small", { textContent: `por ${info.owner}` }));
-    if (info && info.owner && info.owner.toLowerCase() === myName) { // quem enviou pode apagar
-      const del = el("button", { className: "kick", textContent: "✖", title: "Apagar esta skin" });
+    if (info) { // qualquer jogador pode apagar skins enviadas
+      const del = el("button", { className: "kick cti-btn cti-btn--red cti-btn--sm cti-btn--icon", title: "Apagar esta skin" }, icon("close", "sm"));
       del.onclick = (e) => {
         e.stopPropagation();
-        if (confirm(`Apagar a skin ${info.name}? Ela some para todos os jogadores.`)) send({ t: "skin_del", id: k, owner: $("playerName").value.trim() });
+        if (confirm(`Apagar a skin ${info.name}? Ela some para todos os jogadores.`)) send({ t: "skin_del", id: k });
       };
       card.append(del);
     }
     if (!taken) card.onclick = () => pickSkin(k);
     return card;
   });
-  const add = el("div", { className: "skin add", title: "Enviar uma imagem sua como skin" }, el("span", { className: "plus", textContent: "+" }), "Adicionar skin");
+  const add = el("div", { className: "skin add cti-panel", title: "Enviar uma imagem sua como skin" }, el("span", { className: "plus", textContent: "+" }), "Adicionar skin");
   add.onclick = openUpload;
   grid.replaceChildren(...cards, add);
 }
@@ -774,25 +808,44 @@ const ROUND_OPTS = [1, 2, 3, 5, 7, 10, 15, 20];
 const TIME_OPTS = [30, 60, 75, 90, 120, 180, 240, 300, 600];
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-function field(label, input) { return el("label", {}, label, input); }
+const ICON = "assets/cti-ui/assets/icons/";
+const icon = (name, size = "") => el("img", { className: "cti-icon" + (size ? ` cti-icon--${size}` : ""), src: `${ICON}${name}.png`, alt: "" });
+
+// linha de formulário (kit cti-ui): nome à esquerda, controle à direita; o toggle fica fora do <label> porque já é um
+function field(label, control) {
+  return el(control.wrap ? "div" : "label", { className: "cti-field" }, el("span", { className: "cti-label", textContent: label }), control.wrap || control);
+}
+// interruptor Ativado/Desativado que se comporta como um select de "1"/"0" (value, disabled, onchange)
+function toggle(value, onchange) {
+  const input = el("input", { type: "checkbox" });
+  const text = el("em");
+  Object.defineProperty(input, "value", {
+    get: () => (input.checked ? "1" : "0"),
+    set: (v) => { input.checked = String(v) === "1"; text.textContent = input.checked ? "Ativado" : "Desativado"; },
+  });
+  input.value = value;
+  input.addEventListener("change", () => { input.value = input.value; });
+  if (onchange) input.addEventListener("change", onchange);
+  input.wrap = el("label", { className: "cti-toggle" }, input, el("span"), text);
+  return input;
+}
 function select(opts, value, onchange) {
-  const s = el("select", {}, ...opts.map(([v, t]) => el("option", { value: v, textContent: t })));
+  const s = el("select", { className: "cti-select" }, ...opts.map(([v, t]) => el("option", { value: v, textContent: t })));
   s.value = String(value);
   if (onchange) s.onchange = onchange;
   return s;
 }
 const mapOptions = () => [["rotate", "Alternar a cada rodada"], ...maps.map((m) => [m.id, m.name])];
 const roundOptions = () => ROUND_OPTS.map((n) => [n, `${n} ${n === 1 ? "rodada" : "rodadas"}`]);
-const onOff = () => [["1", "Ativado"], ["0", "Desativado"]];
 const timeOptions = () => TIME_OPTS.map((n) => [n, fmtTime(n)]);
 
 const forms = {};
 function buildForms() {
-  forms.single = { map: select(mapOptions(), "rotate"), bots: select([1, 2, 3, 4, 5].map((n) => [n, `${n} ${n === 1 ? "bot" : "bots"}`]), 3), rounds: select(roundOptions(), 3), time: select(timeOptions(), 120), events: select(onOff(), "0"), sd_var: select(onOff(), "1") };
+  forms.single = { map: select(mapOptions(), "rotate"), bots: select([1, 2, 3, 4, 5].map((n) => [n, `${n} ${n === 1 ? "bot" : "bots"}`]), 3), rounds: select(roundOptions(), 3), time: select(timeOptions(), 120), events: toggle("0"), sd_var: toggle("1") };
   $("singleForm").replaceChildren(field("Mapa", forms.single.map), field("Adversários", forms.single.bots),
     field("Rodadas", forms.single.rounds), field("Tempo de cada rodada", forms.single.time),
     field("Eventos no mapa", forms.single.events), field("Morte súbita variada", forms.single.sd_var));
-  forms.create = { room: el("input", { maxLength: 24, placeholder: "Nome da sala" }), map: select(mapOptions(), "rotate"), rounds: select(roundOptions(), 3), time: select(timeOptions(), 120), events: select(onOff(), "0"), sd_var: select(onOff(), "1") };
+  forms.create = { room: el("input", { className: "cti-input", maxLength: 24, placeholder: "Nome da sala" }), map: select(mapOptions(), "rotate"), rounds: select(roundOptions(), 3), time: select(timeOptions(), 120), events: toggle("0"), sd_var: toggle("1") };
   $("createForm").replaceChildren(field("Nome da sala", forms.create.room), field("Mapa", forms.create.map),
     field("Rodadas", forms.create.rounds), field("Tempo de cada rodada", forms.create.time),
     field("Eventos no mapa", forms.create.events), field("Morte súbita variada", forms.create.sd_var));
@@ -815,12 +868,12 @@ function playerInfo() {
 function renderHistory() {
   const tb = $("historyTable").tBodies[0];
   if (!history.length) {
-    tb.replaceChildren(el("tr", {}, el("td", { colSpan: 8, className: "note", textContent: "Ninguém pontuou ainda. Jogue uma partida multiplayer com 3 ou mais pessoas!" })));
+    tb.replaceChildren(el("tr", {}, el("td", { colSpan: 8, className: "cti-label", textContent: "Ninguém pontuou ainda. Jogue uma partida multiplayer com 3 ou mais pessoas!" })));
     return;
   }
   const mine = $("playerName").value.trim().toLowerCase();
-  tb.replaceChildren(...history.map((r, i) => el("tr", { className: r.name.toLowerCase() === mine ? "me" : "" },
-    el("td", { className: "medal", textContent: ["🥇", "🥈", "🥉"][i] || i + 1 }), el("td", { textContent: r.name }),
+  tb.replaceChildren(...history.map((r, i) => el("tr", { className: r.name.toLowerCase() === mine ? "is-me" : "" },
+    el("td", { className: "pos" }, i === 0 ? icon("crown", "sm") : String(i + 1)), el("td", { textContent: r.name }),
     ...[r.points, r.avg, r.match_wins, r.round_wins, r.kills || 0, r.matches].map((v) => el("td", { className: "num", textContent: v })))));
 }
 
@@ -832,11 +885,11 @@ function renderRooms() {
     const mapName = r.map === "rotate" ? "Alternando" : (maps.find((m) => m.id === r.map) || {}).name || r.map;
     const inGame = r.phase !== "lobby";
     const full = r.players >= r.max;
-    const btn = el("button", { textContent: full ? "Cheia" : inGame ? "Entrar (próx. rodada)" : "Entrar", disabled: full, className: full ? "ghost" : "" });
+    const btn = el("button", { textContent: full ? "Cheia" : inGame ? "Entrar (próx. rodada)" : "Entrar", disabled: full, className: "cti-btn cti-btn--sm " + (full ? "cti-btn--iron" : "cti-btn--green") });
     btn.onclick = () => { const p = playerInfo(); if (p) { lastMode = "multi"; send({ t: "join", room: r.id, ...p }); } };
     return el("tr", {}, el("td", { textContent: r.name }), el("td", { textContent: r.host }),
       el("td", { textContent: `${r.players}/${r.max}` }), el("td", { textContent: mapName }),
-      el("td", {}, el("span", { className: "pill " + (inGame ? "live" : "wait"), textContent: inGame ? `Em jogo · rodada ${r.round}/${r.rounds}` : `Aguardando · ${r.rounds} rodadas` })),
+      el("td", {}, el("span", { className: "cti-badge " + (inGame ? "cti-badge--host" : "cti-badge--ready"), textContent: inGame ? `Em jogo · rodada ${r.round}/${r.rounds}` : `Aguardando · ${r.rounds} rodadas` })),
       el("td", {}, btn));
   }));
 }
@@ -851,8 +904,8 @@ function buildRoomForm() {
   rf.map = select(mapOptions(), "rotate", change);
   rf.rounds = select(roundOptions(), 3, change);
   rf.time = select(timeOptions(), 120, change);
-  rf.events = select(onOff(), "0", change);
-  rf.sd_var = select(onOff(), "1", change);
+  rf.events = toggle("0", change);
+  rf.sd_var = toggle("1", change);
   $("roomSettings").replaceChildren(field("Mapa", rf.map), field("Rodadas", rf.rounds), field("Tempo da rodada", rf.time),
     field("Eventos no mapa", rf.events), field("Morte súbita variada", rf.sd_var));
 }
@@ -934,17 +987,17 @@ function updateUI() {
 
   const canKick = (p) => isHost && p.id !== myId && !p.bot && p.connected;
   const kickBtn = (p) => {
-    const b = el("button", { className: "kick", textContent: "✖", title: `Expulsar ${p.name} da sala`, ariaLabel: `Expulsar ${p.name} da sala` });
+    const b = el("button", { className: "kick cti-btn cti-btn--red cti-btn--sm cti-btn--icon", title: `Expulsar ${p.name} da sala`, ariaLabel: `Expulsar ${p.name} da sala` }, icon("close", "sm"));
     b.onclick = () => { if (confirm(`Expulsar ${p.name} da sala?`)) send({ t: "kick", id: p.id }); };
     return b;
   };
 
   renderOnce($("lobbyList"), [S.players.map((p) => [p.id, p.name, p.ready, p.skin, p.connected]), S.host, isHost], () =>
-    S.players.map((p) => el("li", {}, avatar(p.skin, 34), p.name + (p.id === myId ? " (você)" : "") + (p.id === S.host ? " 👑" : "") + (p.bot ? " 🤖" : ""),
-      el("span", { className: "st pill " + (p.ready ? "ok" : "idle"), textContent: p.ready ? "pronto ✔" : "aguardando" }), canKick(p) ? kickBtn(p) : "")));
+    S.players.map((p) => el("li", {}, avatar(p.skin, 34), p.name + (p.id === myId ? " (você)" : "") + (p.bot ? " 🤖" : ""), p.id === S.host ? icon("crown", "sm") : "",
+      el("span", { className: "st cti-badge " + (p.ready ? "cti-badge--ready" : p.id === S.host ? "cti-badge--host" : ""), textContent: p.ready ? "pronto" : "aguardando" }), canKick(p) ? kickBtn(p) : "")));
 
   renderOnce($("finalTable"), S.final, () => {
-    const rows = S.final.map((f, i) => el("tr", {}, el("td", { className: "medal", textContent: f.winner ? "🏆" : i + 1 }),
+    const rows = S.final.map((f, i) => el("tr", { className: f.winner ? "is-me" : "" }, el("td", { className: "pos" }, f.winner ? icon("trophy", "sm") : String(i + 1)),
       el("td", {}, avatar(f.skin, 30), f.name),       el("td", { className: "num", textContent: f.points })));
     return [el("thead", {}, el("tr", {}, el("th"), el("th", { textContent: "Jogador" }), el("th", { className: "num", textContent: "Pontos" }))), el("tbody", {}, ...rows)];
   });
@@ -969,7 +1022,7 @@ function updateUI() {
   renderOnce($("timeInfo"), [lobby, S.room, S.sudden, S.sd_style, S.time_left], () => {
     if (lobby) return [el("span", { className: "lbl", textContent: S.room })];
     return [S.sudden ? el("span", { className: "sd", textContent: S.sd_style === "rain" ? "CHUVA DE FOGO!" : S.sd_style === "collapse" ? "CHÃO DESABANDO!" : "MORTE SÚBITA!" })
-      : el("span", { className: "clock" + (S.time_left <= 10 ? " low" : "") }, el("img", { className: "clock-ico", src: "assets/ui/clock.webp", alt: "" }), fmtClock(S.time_left))];
+      : el("span", { className: "clock" + (S.time_left <= 10 ? " low" : "") }, el("img", { className: "clock-ico", src: `${ICON}clock.png`, alt: "" }), fmtClock(S.time_left))];
   });
   renderOnce($("roundInfo"), [lobby, S.rounds, S.round, S.tiebreak], () =>
     [lobby ? el("span", { className: "lbl", textContent: `${S.rounds} rodadas` })
@@ -983,7 +1036,7 @@ function updateUI() {
       const tags = [p.waiting ? "⏳" : "", ...Array.from({ length: p.lives || 0 }, () => el("i", { className: "icone-vida" })),
         !p.alive && !p.waiting && !lobby ? el("i", { className: "icone-morto", title: "Eliminado" }) : "",
         p.shield ? "🛡️" : "", p.curse ? "💀" : "", p.connected ? "" : " ✖"];
-      const tr = el("tr", { className: (p.alive || lobby ? "" : "dead") + (p.id === myId ? " me" : "") },
+      const tr = el("tr", { className: (p.alive || lobby ? "" : "dead") + (p.id === myId ? " is-me" : "") },
         el("td", { title: p.name }, avatar(p.skin, 26), p.name),
         el("td", { className: "num", textContent: p.points }), el("td", {}, ...tags, canKick(p) ? kickBtn(p) : ""));
       return tr;
@@ -1014,6 +1067,8 @@ function updateUI() {
     if (me.curse) out.push(el("span", { className: "curse", textContent: `💀 ${CURSE_NAMES[me.curse]} · ${me.curse_t}s`, title: CURSE_INFO[me.curse][1] }));
     return out;
   });
+  $("tMine").classList.toggle("hidden", !(me && me.abil.includes("mine_bomb"))); // botões de toque só com o poder
+  $("tSearch").classList.toggle("hidden", !(me && me.abil.includes("search_bomb")));
   fitPowers();
 }
 
@@ -1071,20 +1126,19 @@ function currentStyle() {
   const set = A.tileset && A.tileset.themes[A.tileset.maps[S.map]]; // tema de tiles do mapa (assets/tilesets)
   return {
     st: MAP_STYLE[S.map] || MAP_STYLE.classic,
-    ts: { floor: m.floor && m.floor.length ? m.floor : d.floor, wall: m.wall || d.wall, block: m.block || d.block, set: set && set.piso_a ? set : null },
+    ts: { floor: m.floor && m.floor.length ? m.floor : d.floor, wall: m.wall || d.wall, block: m.block || d.block, set: set || null },
   };
 }
 
-// enfeite do piso em ~5% das casas, sempre nas mesmas (sorteio fixo pela posição)
-const decorated = (x, y) => ((Math.imul(x + 1, 73856093) ^ Math.imul(y + 1, 19349663)) >>> 0) % 100 < 5;
-
-function drawFloor(st, ts) {
+// piso sorteado por casa conforme os pesos do tema, sempre o mesmo na mesma posição
+function drawFloor(st, ts, now) {
   const set = ts.set;
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       if (set) {
-        const img = set.piso_decorado && decorated(x, y) ? set.piso_decorado : (x + y) % 2 ? set.piso_b || set.piso_a : set.piso_a;
-        ctx.drawImage(img, x * TILE, y * TILE, TILE, TILE);
+        let r = ((Math.imul(x + 1, 73856093) ^ Math.imul(y + 1, 19349663)) >>> 0) % set.total;
+        const f = set.floors.find((o) => (r -= o.weight) < 0) || set.floors[0];
+        drawStrip(f, x * TILE, y * TILE, now);
         continue;
       }
       if (ts.floor.length) { ctx.drawImage(ts.floor[(x + y) % ts.floor.length], x * TILE, y * TILE, TILE, TILE); continue; }
@@ -1093,18 +1147,20 @@ function drawFloor(st, ts) {
     }
 }
 
+const isBorderCell = (x, y) => x === 0 || y === 0 || x === W - 1 || y === H - 1;
+const isRiverWater = (grid, x, y) => S.map === "river" && x > 0 && x < W - 1 && y === Math.floor(H / 2) && grid[y * W + x] === "1";
+
 function drawGrid(grid, st, ts, now) {
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const c = grid[y * W + x], px = x * TILE, py = y * TILE;
-      if (c === "1" && ts.set) { // borda do mapa = parede; pilares de dentro = inquebravel; no Rio a fileira de pilares do meio é água
-        const border = x === 0 || y === 0 || x === W - 1 || y === H - 1;
-        const water = S.map === "river" && !border && y === Math.floor(H / 2) && A.tileset.extra.agua;
-        if (water) { drawExtraTile(water, px, py, TILE, TILE, now); continue; }
-        const img = border ? ts.set.parede : ts.set.inquebravel;
-        if (img) { ctx.drawImage(img, px, py, TILE, TILE); continue; }
+      if (c === "1" && ts.set) { // borda do mapa = parede, pilares de dentro = inquebravel (tipos diferentes, fora do mapa conta como borda); no Rio a fileira do meio é água
+        const isBorder = isBorderCell(x, y), mech = A.tileset.mech;
+        if (!isBorder && isRiverWater(grid, x, y) && mech.agua) { drawAutoTile(mech.agua, (gx, gy) => isRiverWater(grid, gx, gy), x, y, now); continue; }
+        drawAutoTile({ img: isBorder ? ts.set.parede : ts.set.inquebravel }, (gx, gy) => gx < 0 || gy < 0 || gx >= W || gy >= H ? isBorder : grid[gy * W + gx] === "1" && isBorderCell(gx, gy) === isBorder, x, y, now);
+        continue;
       }
-      if (c === "2" && ts.set && ts.set.quebravel) { ctx.drawImage(ts.set.quebravel, px, py, TILE, TILE); continue; }
+      if (c === "2" && ts.set) { ctx.drawImage(ts.set.quebravel, px, py, TILE, TILE); continue; }
       if (c === "1") {
         if (ts.wall) { ctx.drawImage(ts.wall, px, py, TILE, TILE); continue; }
         const [base, light, dark] = st.wall;
@@ -1132,21 +1188,21 @@ function drawGrid(grid, st, ts, now) {
 const PORTAL_COLORS = ["#4aa8ff", "#ff6ad5", "#ffd84a", "#6dff9c"];
 const BELT_ANGLE = { r: 0, d: Math.PI / 2, l: Math.PI, u: -Math.PI / 2 };
 
-// portais e esteiras (casas especiais de algumas fases)
+// portais, esteiras, gelo e lava (casas especiais de algumas fases)
 function drawSpecials(specials, now) {
+  const tile = A.tileset && A.tileset.mech;
+  const cells = { i: new Set(), l: new Set() }; // casas de gelo e de lava: os vizinhos do mesmo tipo se fundem no autotile
+  for (const [x, y, kind] of specials) if (cells[kind]) cells[kind].add(y * W + x);
+  const same = (set) => (gx, gy) => gx >= 0 && gy >= 0 && gx < W && gy < H && set.has(gy * W + gx);
   for (const [x, y, kind, extra] of specials) {
     const cx = (x + 0.5) * TILE, cy = (y + 0.5) * TILE;
-    const tile = A.tileset && A.tileset.extra;
-    if (tile) { // tiles do tema (assets/tilesets): esteira (gira para a direção), gelo, lava e portal (por cima do piso, com cor diferente por par)
-      if (kind === "b" && tile.esteira) {
-        ctx.save(); ctx.translate(cx, cy); ctx.rotate(BELT_ANGLE[extra]);
-        drawExtraTile(tile.esteira, -TILE / 2, -TILE / 2, TILE, TILE, now); ctx.restore(); continue;
-      }
-      if (kind === "i" && tile.escorregadio) { drawExtraTile(tile.escorregadio, x * TILE, y * TILE, TILE, TILE, now); continue; }
-      if (kind === "l" && tile.lava) { drawExtraTile(tile.lava, x * TILE, y * TILE, TILE, TILE, now); continue; }
+    if (tile) { // tiles do tema (assets/tilesets): esteira (uma tira por direção), gelo e lava (autotile), portal (por cima do piso, com cor diferente por par)
+      if (kind === "b" && tile["esteira_" + extra]) { drawStrip(tile["esteira_" + extra], x * TILE, y * TILE, now); continue; }
+      if (kind === "i" && tile.escorregadio) { drawAutoTile(tile.escorregadio, same(cells.i), x, y, now); continue; }
+      if (kind === "l" && tile.lava) { drawAutoTile(tile.lava, same(cells.l), x, y, now); continue; }
       if (kind === "w" && tile.portal) {
         ctx.filter = `hue-rotate(${[0, 90, 180, 270][extra % 4]}deg)`;
-        drawExtraTile(tile.portal, x * TILE, y * TILE, TILE, TILE, now); ctx.filter = "none"; continue;
+        drawStrip(tile.portal, x * TILE, y * TILE, now); ctx.filter = "none"; continue;
       }
     }
     if (kind === "b") { // esteira: base escura com setas correndo na direção do movimento
@@ -1274,8 +1330,34 @@ function drawFlames(flames) {
   }
 }
 
+const MINE_ANIM = 2, MINE_FADE = 1, MINE_FPS = 6; // mina armando: animação em repetição por MINE_ANIM s, depois a mina plantada esmaece por MINE_FADE s (a soma é o MINE_ARM do servidor)
+
+// mina: armando (tipo 3, t = segundos desde que foi plantada) repete os quadros de mina.png por MINE_ANIM s, mostra mina_plantada.png e a esmaece até sumir em MINE_FADE s;
+// acionada (tipo 4, t = pavio restante) reaparece como mina_plantada.png, piscando cada vez mais rápido. Armada e sem ninguém por cima, o servidor nem a envia.
+function drawMine(x, y, kind, t, now) {
+  const cx = (x + 0.5) * TILE, cy = (y + 0.5) * TILE, r = TILE * 0.42;
+  const planted = kind === 4 || t >= MINE_ANIM;
+  const alpha = kind === 3 && planted ? Math.max(0, 1 - (t - MINE_ANIM) / MINE_FADE) : 1;
+  if (kind === 4 && Math.floor(now / (t < 0.4 ? 50 : 90)) % 2) return; // pisca
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(0,0,0,.25)";
+  ctx.beginPath(); ctx.ellipse(cx, cy + r * 0.7, r * 0.8, r * 0.35, 0, 0, 7); ctx.fill();
+  const sheet = planted ? A.minePlanted : A.mine;
+  if (sheet) {
+    const i = planted ? 0 : Math.floor(t * MINE_FPS) % sheet.rects.length;
+    const q = sheet.rects[i], k = (r * 2) / sheet.maxDim, dw = q.sw * k, dh = q.sh * k;
+    ctx.drawImage(sheet.img, q.sx, q.sy, q.sw, q.sh, cx - dw / 2, cy + r - dh, dw, dh);
+  } else {
+    ctx.fillStyle = planted ? "#c0392b" : "#5a6a8a"; // sem sprite: disco com luz no meio
+    ctx.beginPath(); ctx.ellipse(cx, cy + r * 0.3, r, r * 0.55, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#ffd84a"; ctx.beginPath(); ctx.arc(cx, cy + r * 0.3, 3, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawBombs(bombs, now) {
   for (const [x, y, hop, t, , remote, power, pierce, search = 0] of bombs) {
+    if (search >= 3) { drawMine(x, y, search, t, now); continue; }
     const cx = (x + 0.5) * TILE;
     let cy = (y + 0.5) * TILE - hop * TILE * 0.9;
     const sheet = (search && A.bombSearch) || (power && A.bombPower) || (pierce && A.bombPierce) || A.bomb; // super bomba e perfurante têm o seu próprio sprite
@@ -1390,7 +1472,7 @@ function frame(now) {
   if (screen === "game" && S) {
     const { st, ts } = currentStyle();
     ctx.imageSmoothingEnabled = !A.pixelArt; // drawCharacter muda isso por skin; sem voltar, powerups e bomba saíam borrados
-    drawFloor(st, ts);
+    drawFloor(st, ts, now);
     drawSpecials(S.specials || [], now);
     drawGrid(S.grid, st, ts, now);
     drawItems(S.items, now);
