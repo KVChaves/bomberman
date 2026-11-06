@@ -11,6 +11,7 @@ import re
 import secrets
 import socket
 import struct
+import struct
 import sys
 import threading
 import time
@@ -174,6 +175,7 @@ class Skins:
 
     MAX_BYTES = 512 * 1024
     MAX_PER_OWNER, MAX_TOTAL = 5, 200
+    SHEET_COLS, SHEET_ROWS = 6, 4
     MAGIC = ((b"\x89PNG", "png"), (b"\xff\xd8\xff", "jpg"), (b"GIF8", "gif"))
     EXTS = {"png", "jpg", "jpeg", "gif", "webp"}
 
@@ -234,9 +236,19 @@ class Skins:
         ext = self._kind(data)
         if not ext:
             return None, "Formato não aceito. Use PNG, JPG, GIF ou WebP."
+        animated = m.get("animated") is True
+        if animated:  # spritesheet de SHEET_COLS x SHEET_ROWS quadros (baixo, esquerda, direita, cima)
+            if ext not in ("png", "webp"):
+                return None, "Skin animada precisa ser PNG ou WebP."
+            if ext == "png":
+                w, h = struct.unpack(">II", data[16:24].ljust(8, b"\0"))
+                if not w or not h or w % self.SHEET_COLS or h % self.SHEET_ROWS:
+                    return None, f"O spritesheet precisa ter {self.SHEET_COLS} colunas x {self.SHEET_ROWS} linhas."
         sid = "c" + secrets.token_hex(4)
         skin = {"id": sid, "file": f"{sid}.{ext}", "name": str(m.get("name", "")).strip()[:16] or f"Skin de {owner}",
                 "owner": owner}
+        if animated:
+            skin["animated"] = True
         if STORE:
             STORE.put("skin:" + skin["file"], base64.b64encode(data).decode())
             IMAGE_CACHE[skin["file"]] = data
