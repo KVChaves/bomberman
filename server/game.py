@@ -28,6 +28,7 @@ WIN_POINTS, DRAW_POINTS = 3, 1
 MATCH_WIN_BONUS = 10  # pontos extras no ranking para quem vence a partida
 ICE_FACTOR = 0.9
 RAIN_INTERVAL, RAIN_WARN = 0.35, 1.0
+FIRE_KILL, FIRE_LIFE = 1.0, 2.1  # chuva de fogo: o piso mata por FIRE_KILL s (acende + queima) e o fogo ainda apaga até FIRE_LIFE s (só visual)
 RAIN_RAMP, RAIN_FACTOR, RAIN_MIN = 5.0, 0.6, 0.03  # a cada RAIN_RAMP s o intervalo entre raios cai (x RAIN_FACTOR, mínimo RAIN_MIN) e entra +1 raio por disparo
 FALL_INTERVAL, FALL_WARN = 0.35, 1.2  # desabamento: um novo trecho começa a rachar a cada intervalo; cai depois do aviso
 SD_STYLES = {"spiral": "Morte súbita: o campo fecha em espiral!", "columns": "Morte súbita: paredes pelos lados!",
@@ -353,6 +354,7 @@ class Room:
         self.h, self.w = len(self.grid), len(self.grid[0])
         self.bombs, self.bomb_at = [], {}
         self.flames, self.items = {}, {}
+        self.fires = {}  # casas da chuva de fogo -> fim da animação do fogo no piso (a chama que mata está em flames)
         self.flame_owner = {}  # casa em chamas -> dono da bomba (para contar eliminações)
         self.flame_conn = {}  # casa em chamas -> lados ligados a outra chama (CONN_*): o cliente escolhe a peça do sprite
         self.winner = None
@@ -585,6 +587,8 @@ class Room:
             del self.flames[cell]
             self.flame_owner.pop(cell, None)
             self.flame_conn.pop(cell, None)
+        for cell in [c for c, exp in self.fires.items() if exp <= self.now]:
+            del self.fires[cell]
 
         if not playing:
             return
@@ -758,7 +762,8 @@ class Room:
                     self.grid[y][x] = EMPTY
                 self.items.pop((x, y), None)
                 self.flame_owner.pop((x, y), None)
-                self.flames[(x, y)] = self.now + FLAME_TIME
+                self.flames[(x, y)] = self.now + FIRE_KILL
+                self.fires[(x, y)] = self.now + FIRE_LIFE
                 self.flame_conn[(x, y)] = CONN_ALL  # raio: casa isolada
                 self.burn({(x, y)})
 
@@ -767,6 +772,7 @@ class Room:
         self.grid[y][x] = WALL
         self.items.pop((x, y), None)
         self.flames.pop((x, y), None)
+        self.fires.pop((x, y), None)
         self.flame_conn.pop((x, y), None)
         self.specials.pop((x, y), None)
         b = self.bomb_at.pop((x, y), None)
@@ -1189,6 +1195,7 @@ class Room:
                          "sd_var": self.sd_var},
             "sd_style": self.sd_style if self.sudden else "",
             "event": {"id": self.event_id, "msg": self.event_msg},
+            "fires": [[x, y, round(exp - self.now, 2)] for (x, y), exp in self.fires.items()],
             "warn": [[w[0], w[1], w[2], round(w[3], 2)] for w in self.warns],
             "round": self.round_no, "rounds": self.rounds,
             "tiebreak": self.round_no > self.rounds and self.phase in ("countdown", "playing", "over"),
